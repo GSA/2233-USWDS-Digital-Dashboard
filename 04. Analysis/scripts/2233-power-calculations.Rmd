@@ -288,7 +288,8 @@ ggplot() +
     subtitle = glue::glue("Population size: {scales::comma(population_size_color_contrast_issues)}
                           Population outcome mean: {scales::comma(population_mean_color_contrast_issues, accuracy = .01)}
                           Population treatment proportion: {scales::comma(population_treatement_proportion, accuracy = .01)}
-                          Population treatment effect: {scales::comma(params$ate, accuracy = .01)} 
+                          Population treatment effect: {scales::comma(params$ate, accuracy = .01)}
+                          Number of simulations: {scales::comma(params$simulations)}
                           ")
   ) +
   theme(
