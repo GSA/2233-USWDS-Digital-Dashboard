@@ -1,7 +1,7 @@
 ---
 title: "Power calculations"
 date: "`r Sys.Date()`"
-output: 
+output:
   html_document:
     theme: united
     highlight: tango
@@ -76,8 +76,8 @@ d %>% group_by(name) %>%  skim()
 Issues are very left skewed. This drops null values, which may not be the right choice.
 
 ```{r}
-d %>% 
-  filter(name != "uswds_score") %>% 
+d %>%
+  filter(name != "uswds_score") %>%
   ggplot(aes(x = value)) +
   geom_density() +
   theme_fivethirtyeight() +
@@ -89,7 +89,7 @@ d %>%
 Again issues are very left skewed. This is consistent across the issue types. WDS score is really an indicator.
 
 ```{r}
-d %>% 
+d %>%
   ggplot(aes(x = value, fill = name)) +
   geom_histogram() +
   scale_fill_oes(palette = "full colors") +
@@ -99,8 +99,8 @@ d %>%
 When we treat the null values as zero, we have greater skew.
 
 ```{r}
-d %>% 
-  mutate(value = replace_na(value, 0)) %>% 
+d %>%
+  mutate(value = replace_na(value, 0)) %>%
   ggplot(aes(x = value, fill = name)) +
   geom_histogram() +
   scale_fill_oes(palette = "full colors") +
@@ -117,11 +117,11 @@ Outcome distribution is very left skewed and may be better model by a negative b
 Several assumptions are based off of the means and sample size of the USWDS data.
 
 ```{r}
-prep_01 <- 
-  d %>% 
-  group_by(name) %>% 
+prep_01 <-
+  d %>%
+  group_by(name) %>%
   summarise(mean = mean(value, na.rm = TRUE),
-            websites = n_distinct(website)) %>% 
+            websites = n_distinct(website)) %>%
   ungroup()
 
 prep_01
@@ -130,9 +130,9 @@ prep_01
 Using the color contrast issues count as the primary outcome of interest. The assumed population mean is the mean issues.
 
 ```{r}
-population_mean_color_contrast_issues <- 
-  prep_01 %>% 
-  filter(name == "color_contrast_issues") %>% 
+population_mean_color_contrast_issues <-
+  prep_01 %>%
+  filter(name == "color_contrast_issues") %>%
   pull(mean)
 
 population_mean_color_contrast_issues
@@ -141,9 +141,9 @@ population_mean_color_contrast_issues
 The populations size is the number of websites measured for color contrast issues.
 
 ```{r}
-population_size_color_contrast_issues <- 
-  prep_01 %>% 
-  filter(name == "color_contrast_issues") %>% 
+population_size_color_contrast_issues <-
+  prep_01 %>%
+  filter(name == "color_contrast_issues") %>%
   pull(websites)
 
 population_size_color_contrast_issues
@@ -152,11 +152,11 @@ population_size_color_contrast_issues
 The proportion treated is the proportion of screened websites that have the USWDS indicator.
 
 ```{r}
-population_treatement_proportion <- 
-  d %>% 
-  filter(name == "uswds_score") %>% 
-  filter(value == 100) %>% 
-  summarise(websites = n_distinct(website)) %>% 
+population_treatement_proportion <-
+  d %>%
+  filter(name == "uswds_score") %>%
+  filter(value == 100) %>%
+  summarise(websites = n_distinct(website)) %>%
   pull(websites)/population_size_color_contrast_issues
 
 population_treatement_proportion
@@ -171,7 +171,7 @@ The treatment effect is likely to come from a negative binomial distribution on 
 We calculate the treatment effect with this formula:
 
 $$
-Y_1 = \beta_0 + \beta_1Treatment + \beta_2Y_0 
+Y_1 = \beta_0 + \beta_1Treatment + \beta_2Y_0
 $$
 
 ### Calculating power
@@ -187,12 +187,12 @@ simulation_01 <- function(
     in_prop_assigned_treatment,
     in_outcome_distribution)
 {
-  # Treatment effect 
+  # Treatment effect
   effect <- -rnbinom(in_population_size, size = 1, mu = -in_ate)
-  
+
   # Outcome distribution
   outcome_0 <- rnbinom(in_population_size, size = 1, mu = in_population_mean)
-  
+
   # Simulated data
   pop_01 <- fabricate(
   N = in_population_size,
@@ -203,25 +203,25 @@ simulation_01 <- function(
     effect*treatment + outcome_0 < 0 ~ 0,
     effect*treatment + outcome_0 >= 0 ~ effect*treatment + outcome_0
   )
-) 
-  
+)
+
   if(in_outcome_distribution == "negative binomial")
     {
-    reg <- 
+    reg <-
   pop_01 %>% MASS::glm.nb(outcome_1 ~ treatment + outcome_0, data = ., maxit = 1000)
   }
-  
+
   if(in_outcome_distribution == "normal")
     {
-  reg <- 
+  reg <-
   pop_01 %>% lm_robust(outcome_1 ~ treatment + outcome_0, data = .)
   }
-  
+
   out <- reg %>%
-    tidy() %>% 
-    mutate(iteration = as.character(in_iteration)) %>% 
+    tidy() %>%
+    mutate(iteration = as.character(in_iteration)) %>%
     dplyr::select(iteration, everything())
-  
+
   return(out)
 }
 ```
@@ -229,8 +229,8 @@ simulation_01 <- function(
 We create `r scales::comma(params$simulations)` of this function.
 
 ```{r}
-sims <- 
-  1:params$simulations %>% 
+sims <-
+  1:params$simulations %>%
   map_dfr(~simulation_01(in_iteration = .,
               in_population_size = population_size_color_contrast_issues,
               in_ate = params$ate,
@@ -240,12 +240,12 @@ sims <-
   )
 ```
 
-For the the treatment estimates, we calculate the the 80th percentile. 
+For the the treatment estimates, we calculate the the 80th percentile.
 
 ```{r}
 prep_01 <-
-  sims %>% 
-  filter(term == 'treatment') %>% 
+  sims %>%
+  filter(term == 'treatment') %>%
   summarise(
     # q_10 = quantile(estimate,probs = 0.1),
     #         q_20 = quantile(estimate,probs = 0.2),
@@ -254,10 +254,10 @@ prep_01 <-
             q_80 = quantile(estimate,
                             probs = 0.8,names = FALSE),
             # q_90 = quantile(estimate,probs = 0.9)
-    ) %>% 
-  rownames_to_column() %>% 
-  pivot_longer(-rowname) %>% 
-  dplyr::select(-rowname) %>% 
+    ) %>%
+  rownames_to_column() %>%
+  pivot_longer(-rowname) %>%
+  dplyr::select(-rowname) %>%
   mutate(label = glue::glue("MDE: {scales::comma(value, accuracy = .01)}"))
 
 ```
@@ -267,7 +267,7 @@ prep_01 <-
 The estimated beta of the treatment are shown below with the MDE of `r prep_01 %>% pull(value) %>% scales::comma(accuracy = .01)`.
 
 ```{r}
-prep_02 <- sims %>% 
+prep_02 <- sims %>%
            filter(term == 'treatment')
 ```
 
@@ -295,7 +295,7 @@ ggplot() +
   theme(
     legend.position = "none",
     plot.title = element_text(hjust = 0.5),
-    plot.subtitle = element_text(hjust = 0.5, 
+    plot.subtitle = element_text(hjust = 0.5,
                                  size = 10)
   )
 ```
