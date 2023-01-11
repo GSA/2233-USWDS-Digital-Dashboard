@@ -109,12 +109,21 @@ d %>%
 ```
 
 Outcome distribution is very left skewed and may be better model by a negative binomial distribution.
+<!--
+JB: If this is a randomized trial then we don't need to choose a model of the
+outcome. See Chapter 3 of Gerber and Green field experiments or the materials on
+estimation in https://egap.github.io/theory_and_practice_of_field_experiments/
+
+-->
 
 ## Power analysis {.tabset .tabset-pills}
 
 ### Assumptions
 
-Several assumptions are based off of the means and sample size of the USWDS data.
+Several assumptions are based on the means and sample size of the USWDS data.
+<!--
+https://english.stackexchange.com/questions/15081/based-on-instead-of-based-off-of
+-->
 
 ```{r}
 prep_01 <-
@@ -205,10 +214,14 @@ simulation_01 <- function(
   )
 )
 
+  # JB: I think that glm.nb is unnecessary and makes it hard to interpret the
+  # coefs. Again, see the proofs of the unbiasedness of the difference of means
+  # as an estimator of the average treatment effect
+
   if(in_outcome_distribution == "negative binomial")
-    {
-    reg <-
-  pop_01 %>% MASS::glm.nb(outcome_1 ~ treatment + outcome_0, data = ., maxit = 1000)
+  {
+      reg <-
+          pop_01 %>% MASS::glm.nb(outcome_1 ~ treatment + outcome_0, data = ., maxit = 1000)
   }
 
   if(in_outcome_distribution == "normal")
@@ -241,6 +254,11 @@ sims <-
 ```
 
 For the the treatment estimates, we calculate the the 80th percentile.
+
+<!-- JB I'm
+not sure what is happening here. Don't you want to know whether 80% of the
+time you've reject the null of no effects given a particular treatment effect?
+-->
 
 ```{r}
 prep_01 <-
