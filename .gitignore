@@ -1,6 +1,7 @@
 .Rproj.user/*
-04. Analysis/.Rproj.user/*
+analysis/.Rproj.user/*
 *.gdoc
 *.gsheet
 *.gsheet.lnk
 03. Data Collection/*
+renv/settings.dcf
