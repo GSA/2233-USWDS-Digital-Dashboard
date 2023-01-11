@@ -1,0 +1,356 @@
+---
+title: "Data exploration"
+author: "Ben Jaques-Leslie"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(janitor)
+library(lubridate)
+```
+
+## Install packages
+
+```{r}
+# Install packages not in OES set -----------------------------------------
+
+install.packages(c("DataExplorer", "flextable", "ggthemes", "infer", "skimr", "nycflights13"))
+
+# Install internal packages -----------------------------------------------
+
+install.packages(here::here("oescolorrrs","oescolorrrs_0.1.0.tar.gz"), source = TRUE, repos=NULL)
+install.packages(here::here("oesrrr","oesrrr_0.1.0.tar.gz"), source = TRUE, repos=NULL)
+```
+
+## Load packages
+
+```{r}
+library(DataExplorer)
+library(flextable)
+library(ggthemes)
+library(skimr)
+library(oescolorrrs)
+library(oesrrr)
+```
+
+## Load data
+
+### Color contrasts
+
+```{r}
+color_contrasts <- read_csv(here::here("data","color_contrasts.csv"), 
+    col_types = cols(`Number of Color Contrast Issues` = col_double(), 
+        Date = col_date(format = "%d-%b-%y"))) %>% 
+  clean_names() %>% 
+  distinct()
+```
+
+```{r}
+color_contrasts %>% skim()
+```
+
+### html attributes
+
+```{r}
+html_attribute <- read_csv(here::here("data","html_attribute.csv"), 
+    col_types = cols(`Number of HTML Aattribute issues` = col_double(), 
+        date = col_date(format = "%d-%b-%y"))) %>% 
+  clean_names() %>% 
+  distinct() %>% 
+  rename_all(~str_remove(.,"_name"))
+```
+
+```{r}
+html_attribute %>% skim()
+```
+
+### Missing image
+
+```{r}
+missing_image <- read_csv(here::here("data","missing_image.csv"), 
+    col_types = cols(`Number of Missing Image Issues` = col_double(), 
+        Date = col_date(format = "%d-%b-%y"))) %>% 
+  clean_names() %>% 
+  distinct() %>% 
+  rename_all(~str_remove(.,"_name"))
+```
+
+```{r}
+missing_image %>% skim()
+```
+
+### USWDS
+
+```{r}
+uswds_data <- read_csv(here::here("data","uswds_data.csv"), 
+    col_types = cols(`USWDS Score` = col_double(),
+        Date = col_date(format = "%d-%b-%y"))) %>% 
+  clean_names() %>% 
+  distinct() %>% 
+  rename_all(~str_remove(.,"_name"))
+```
+
+```{r}
+uswds_data %>% skim()
+```
+
+## Check for duplicates
+
+```{r}
+color_contrasts %>% 
+  get_dupes(website,date)
+```
+
+```{r}
+html_attribute %>% 
+  get_dupes(website,date)
+```
+
+```{r}
+missing_image %>% 
+  get_dupes(website,date)
+```
+
+```{r}
+uswds_data %>% 
+  get_dupes(website,date)
+```
+
+## Bind data
+
+Function to rename column and reshape.
+
+```{r}
+local_rename_pivot <- function(in_data)
+{
+  in_data %>% 
+  rename_all(~str_remove(.,"number_of_")) %>% 
+  pivot_longer(cols = c(-website,-date))
+}
+```
+
+Bind all data into one dataframe.
+
+```{r}
+d <- color_contrasts %>% 
+  local_rename_pivot() %>% 
+  bind_rows(
+    html_attribute %>% 
+  local_rename_pivot()
+  ) %>% 
+  bind_rows(
+    missing_image %>% 
+  local_rename_pivot()
+  ) %>% 
+  bind_rows(
+    uswds_data %>% 
+  local_rename_pivot()
+  ) %>% 
+  mutate(date_month = floor_date(date, unit = "month"),
+         date_week = floor_date(date, unit = "week"),
+         name = factor(name))
+```
+
+Save data
+
+```{r}
+save(d, file = here::here("data","wds.rdata"))
+```
+
+
+```{r}
+d %>% skim()
+```
+```{r}
+d %>% get_dupes()
+```
+
+## Data exploration
+
+Date overview.
+
+```{r}
+d %>% 
+  plot_intro()
+```
+
+```{r}
+d %>% introduce()
+```
+
+Plotting categorical variables.
+
+```{r}
+d %>% 
+  plot_bar()
+```
+
+Overall distribution of issues.
+
+Issues are very left skewed. This drops null values, which may not be the right choice. 
+
+```{r}
+d %>% 
+  filter(name != "uswds_score") %>% 
+  ggplot(aes(x = value)) +
+  geom_density() +
+  theme_fivethirtyeight()
+```
+
+Distribution by issue count and WDS score. 
+
+Again issues are very left skewed. This is consistent across the issue types. WDS score is really an indicator.
+
+```{r}
+d %>% 
+  ggplot(aes(x = value, fill = name)) +
+  geom_histogram() +
+  scale_fill_oes(palette = "full colors") +
+  theme_fivethirtyeight() +
+  facet_wrap('name', scales = "free")
+```
+
+When we treat the null values as zero, we have greater skew. 
+
+```{r}
+d %>% 
+  mutate(value = replace_na(value, 0)) %>% 
+  ggplot(aes(x = value, fill = name)) +
+  geom_histogram() +
+  scale_fill_oes(palette = "full colors") +
+  theme_fivethirtyeight() +
+  facet_wrap('name', scales = "free")
+```
+
+Missing data. 
+
+Only missing in the value and it's not too bad. 
+
+```{r}
+d %>% 
+  plot_missing()
+```
+
+By scan or score, we see that the missingness is concentrated in the issue counts, especially images, and color contrasts.
+
+```{r}
+d %>% 
+  group_split(name) %>% 
+  imap(~plot_missing(.) +
+        labs(title = paste("Plot:", .y, "Issue:", unique(.x$name))))
+```
+
+Number of sites scanned through time.
+
+Fairly consistent scans through early 2022, then a rise in the number before dropping off through 2021, then a return in 2022, USWDS scans in 2020 to present. 
+
+```{r}
+d %>% 
+  group_by(date_month,name,.drop = FALSE) %>% 
+  summarise(websites = n_distinct(website)) %>% 
+  ggplot(aes(x = date_month, y = websites, color = name)) +
+  geom_line() +
+  facet_grid(rows = "name", scales = "free") +
+  scale_color_oes(palette = "full colors") +
+  theme_fivethirtyeight()
+```
+
+Number of scanned sites with USWDS scores.
+
+For only a small proportion of scanned do we have information about WDS usages. Unfortunately, even some of the sites in the WDS data have null values from their score, which isn't clear. 
+
+```{r}
+prep_01 <- 
+  d %>% 
+  drop_na() %>% 
+  filter(name != "uswds_score") %>% 
+  select(website,name) %>% 
+  distinct()
+
+prep_02 <- 
+  uswds_data %>% 
+  group_by(website) %>% 
+  summarise(uswds_score = max(uswds_score)) %>% 
+  ungroup() %>% 
+  mutate(uswds_category = case_when(uswds_score == 0 ~ "WDS not used",
+                                    uswds_score == 100 ~ "WDS used",
+                                    is.na(uswds_score) ~ "NA in WDS data"))
+
+prep_03 <- 
+  prep_01 %>% 
+  full_join(prep_02) %>% 
+  mutate(uswds_category = replace_na(uswds_category,"Not in WDS data"),
+         name = fct_explicit_na(name, na_level = "No accessibility scans found"))
+
+prep_04 <- 
+  prep_03 %>% 
+  group_by(name, uswds_category) %>% 
+  summarise(websites = n_distinct(website)) %>% 
+  ungroup() %>% 
+  mutate(uswds_category = fct_reorder(uswds_category,websites))
+
+prep_04 %>% 
+  ggplot(aes(x = name, y = websites, fill = uswds_category)) +
+  geom_col()+
+  scale_fill_oes(palette = "full colors") +
+  theme_fivethirtyeight() 
+```
+
+
+```{r}
+d %>% 
+  mutate(across(c(name, date_month),~factor(.))) %>% 
+  group_by(date_month, name, .drop = FALSE) %>% 
+  summarise(mean_issues = sum(value, na.rm = TRUE)) %>% 
+    ungroup() %>% 
+    mutate(date_month = as_date(as.character(date_month))) %>% 
+  ggplot(aes(x = date_month, y = mean_issues, color = name)) +
+  geom_line() +
+  facet_grid(rows = "name", scales = "free")
+```
+
+
+```{r}
+d %>% 
+  mutate(across(c(name, date_month),~factor(.))) %>% 
+  mutate(value = replace_na(value, 0)) %>% 
+  group_by(date_month, name, .drop = FALSE) %>% 
+  summarise(mean_issues = mean(value, na.rm = TRUE)) %>% 
+    ungroup() %>% 
+    mutate(date_month = as_date(as.character(date_month))) %>% 
+  ggplot(aes(x = date_month, y = mean_issues, color = name)) +
+  geom_line() +
+  facet_grid(rows = "name", scales = "free")
+```
+
+```{r}
+d %>% 
+  drop_na() %>% 
+  group_by(name) %>% 
+  summarise(website = n_distinct(website))
+```
+
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

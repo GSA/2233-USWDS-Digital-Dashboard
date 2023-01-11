@@ -1,0 +1,406 @@
+---
+title: "USWDS Difference in Differences analysis"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r loadPackages}
+library(tidyverse)
+# library(did)
+library(lubridate)
+
+
+# GSA colors
+gsablue <- "#0053A6"
+gsadarkblue <- "#00407A"
+orange <- "#F7941E"
+red <- "#ED1C24"
+# red <- "FF000"
+blue <- "#0095DA"
+purple <- "#A3238E"
+lightgreen <- "#A6CE39"
+green <- "#007236"
+
+colorPaletteGSA <- c(blue, red, purple, lightgreen, orange, green)
+```
+
+```{r definePaths}
+filepath <- "G://Shared drives//MSG Projects//3.0 Digital Government (LQ3)//2233 USWDS Digital Dashboard//03. Data Collection//"
+savepath <- "G://Shared drives//MSG Projects//3.0 Digital Government (LQ3)//2233 USWDS Digital Dashboard//04. Analysis//Output//"
+colorName <- "color_contrasts.csv"
+htmlName <- "html_attribute.csv"
+imageName <- "missing_image.csv"
+wdsName <- "uswds_data.csv"
+```
+
+## Introduction
+
+The U.S. Web Design System (USWDS) is a set of web design standards intended to make websites more accessible. In a prior study, the Office of Customer Experience and Office of Evaluation Sciences established a positive correlation between using key elements of the USWDS and higher website accessibility scores. This analysis is an extension of that effort to infer a causal relationship between use of the USWDS and increased website accessibility.
+
+
+## Data
+
+The current analysis relies on data gathered for digitaldashboard.gov.
+
+There are four main components of the data:
+
+1. html: this element counts the number of html attribute issues on a webpage.
+2. Image: this element indicates the number of images with missing text descriptions.
+3. Color: the element indicates the total number of color contrast issues.
+4. USWDS: this element indicates whether any of the USWDS components are flagged in a scan of the webpage. This takes on either a yes or no value, although there are also "null" values that could indicate errors in the scan. 
+
+
+```{r readRawfiles}
+colorRaw <- read.csv(paste0(filepath, colorName)) 
+imageRaw <- read.csv(paste0(filepath, imageName)) 
+htmlRaw <- read.csv(paste0(filepath, htmlName)) 
+wdsRaw <- read.csv(paste0(filepath, wdsName)) 
+
+
+# convert dates and de-duplicate
+color <- unique(colorRaw) %>% 
+  rename(Value=Number.of.Color.Contrast.Issues) %>%
+  mutate(Scan = "Color",
+    Date2=as_date(Date, format="%d-%b-%y"),
+    # ContrastIssues=as.numeric(ContrastIssues),
+    weekYear = floor_date(Date2, unit="week"),
+    monthYear = floor_date(Date2, unit="month")) 
+
+html <- unique(htmlRaw) %>%
+  rename(Website=Website.Name, 
+    Date=date, 
+    Value=Number.of.HTML.Aattribute.issues) %>%
+  mutate(Scan = "HTML",
+    Date2=as_date(Date, format="%d-%b-%y"),
+    weekYear = floor_date(Date2, unit="week"),
+    monthYear = floor_date(Date2, unit="month"))
+  # distinct(Website, Date2, Number.of.HTML.Aattribute.issues, .keep_all=TRUE)
+  # distinct(Website, weekYear, HTMLIssues, .keep_all=TRUE)
+
+image <- unique(imageRaw) %>%
+  rename(Website=Website.Name, 
+    Value=Number.of.Missing.Image.Issues) %>%
+  mutate(Scan = "Image",
+    Date2=as_date(Date, format="%d-%b-%y"),
+    weekYear = floor_date(Date2, unit="week"),
+    monthYear = floor_date(Date2, unit="month"))
+  # distinct(Website, weekYear, ImageIssues, .keep_all=TRUE)
+
+# still a few duplicates in the week that have different values
+# one way to treat could be to take the mean or the min/max
+# imageDups <- getDups(image)
+# imageDups %>% group_by(weekYear) %>% summarise(count = n())
+
+
+# wds scan starts in 25th week of 2020, so far fewer observations, only 52 weeks
+# also only 99 websites scanned instead of 1112 for others
+# maybe the correct order here is to use the 99 websites to join the accessibility 
+# scores, but for wds set the value to 0 for any obs prior to when the scans started
+# although that may not be entirely accurate, or just have to restrict to those 52 
+# weeks
+wds <- unique(wdsRaw) %>%
+  rename(Website=Website.Name,
+    Value = USWDS.Score) %>%
+  mutate(Scan = "USWDS",
+    Date2=as_date(Date, format="%d-%b-%y"),
+    weekYear = floor_date(Date2, unit="week"),
+    monthYear = floor_date(Date2, unit="month"))
+  # distinct(Website, weekYear, USWDS.Score, .keep_all=TRUE)
+
+# there are about 90 weeks of data for wds scans and there are 81 days where scans take place
+# they are much more frequent, sometimes on 3 consecutive days if you don't de-dup on scans
+# taking place within a couple of days of each other. kind of strange
+sprintf("There are %s days on which scans take place", length(unique(wds$Date2)))
+sprintf("There are %s weeks between the first and last scan", round((max(wds$Date2) - min(wds$Date2))/7,1))
+```
+
+
+
+```{r countsPlots}
+# The plot shows three distinct periods. First, there are a series of scans in the first half of 2018 that appear to be mostly consistent, with no NULL values being reported. Second, that there is a period of somewhat consistent scan activity in 2019 and 2020 where there are about 575 sites being scanned every two weeks, and about half have a NULL value reported. In 2021, the number of sites being scanned drops close to zero until we see one final scan in March of 2022. 
+colorPlotDF <- color %>%
+  group_by(Date2) %>%
+  summarise(Scans=n(),
+    NAScans=sum(Value=="NULL")) %>%
+  pivot_longer(!Date2, names_to="type", values_to="count") %>%
+  mutate(attribute="Color")
+
+htmlPlotDF <- html %>%
+  group_by(Date2) %>%
+  summarise(Scans=n(),
+    NAScans=sum(Value=="NULL")) %>%
+  pivot_longer(!Date2, names_to="type", values_to="count") %>%
+  mutate(attribute="HTML")
+
+imagePlotDF <- image %>%
+  group_by(Date2) %>%
+  summarise(Scans=n(),
+    NAScans=sum(Value=="NULL")) %>%
+  pivot_longer(!Date2, names_to="type", values_to="count") %>%
+  mutate(attribute="Image")
+
+wdsPlotDF <- wds %>%
+  group_by(Date2) %>%
+  summarise(Scans=n(),
+    NAScans=sum(Value=="NULL")) %>%
+  pivot_longer(!Date2, names_to="type", values_to="count") %>%
+  mutate(attribute="USWDS")
+
+dateScanDF <- rbind(colorPlotDF, htmlPlotDF, imagePlotDF, wdsPlotDF)
+
+numScansOverTimeCol <- ggplot(dateScanDF, aes(x=Date2, y=count, color=type, fill=type)) + 
+  # geom_point() +
+  geom_col(position="dodge") +
+  facet_wrap(~attribute) +
+  labs(x = "Date", y = "Number of Website Scans") +
+  scale_color_manual(values=c(red, blue), aesthetics = c("color", "fill"), 
+    name = "", labels = c("Null Values", "Total Scans"), guide = guide_legend(reverse = TRUE))
+
+ggsave(paste0(savepath, "numScansOverTimeCol.png"), device="png", width = 6.5, height = 4, units = "in")
+
+numScansOverTimePoint <- ggplot(dateScanDF, aes(x=Date2, y=count, color=type, fill=type)) + 
+  geom_point() +
+  facet_wrap(~attribute) +
+  scale_color_manual(values=c(red, blue), aesthetics = c("color", "fill"), 
+    name = "", labels = c("Null Values", "Total Scans"), guide = guide_legend(reverse = TRUE))
+
+ggsave(paste0(savepath, "numScansOverTimePoint.png"), device="png", width = 6.5, height = 4, units = "in")
+
+# note: to plot all scans of all types, i will need to append in similar fashion with a column for type of scan and a value column which could be nice to preserve the actual dates of the scans instead of having to merge on approximations
+
+
+```
+
+```{r countNullsByWebsite}
+
+websiteScanDF <- rbind(image, color, html, wds)
+
+websiteNATotals <- websiteScanDF %>%
+  group_by(Website, Scan) %>%
+  summarize(NULLs = sum(Value=="NULL"),
+    TotalScans = n(),
+    pctNULL = round((NULLs/TotalScans)*100,0))
+
+# I was wondering if anything substantively changes if we get rid of an anomaly where we 
+# see scans with NULLs for image and HTML and 1 for color, but it doesn't actually 
+# exclude that many scans
+websiteNATotals %>%
+  group_by(Scan) %>%
+  summarize(mean=mean(pctNULL),
+    median=median(pctNULL),
+    min=min(pctNULL),
+    max=max(pctNULL))
+
+removeBadData <- websiteScanDF %>%
+  select(Website, Date2, Scan, Value) %>%
+  filter(!(Scan=="USWDS" & Value==NA)) %>%
+  pivot_wider(names_from=Scan, values_from=Value) %>%
+  filter(!(Date2>="2018-10-21" & Date2<="2020-12-21" & (Image=="NULL" & Color==1 & HTML=="NULL"))) %>%
+  pivot_longer(!c(Date2, Website), names_to="attribute", values_to="Value") %>%
+  group_by(Date2, attribute) %>%
+  summarise(Scans=n(),
+    NAScans=sum(Value=="NULL")) %>%
+  pivot_longer(c(Scans, NAScans), names_to="type", values_to="count") %>%
+  filter(!is.na(count))
+
+# ggplot(removeBadData, aes(x=Date2, y=count, color=type, fill=type)) + 
+#   geom_col(position="dodge") +
+#   facet_wrap(~attribute) +
+#   labs(x = "Date", y = "Count") +
+#   scale_color_manual(values=c(red, blue), aesthetics = c("color", "fill"), 
+#     name = "", labels = c("Null Values", "Total Scans"), guide = guide_legend(reverse = TRUE))
+
+```
+
+
+```{r createGantt}
+# to create the image i need to have a data set with a row for the three attributes and a row for wds
+# then i need columns for the critical dates for collecting more/less data (maybe defined as less than 50% of avg?)
+
+avgScans <- dateScanDF %>%
+  filter(type=="Scans") %>%
+  group_by(attribute) %>%
+  summarise(avgScans = mean(count)) %>%
+  ungroup() %>%
+  right_join(dateScanDF %>% filter(type=="Scans"), by = "attribute") %>%
+  mutate(lowScanDay = (count<=.3*avgScans),
+    dataScan = if_else(attribute=="USWDS", "USWDS", "Accessibility"))  
+
+# this works, but could create another col that only differentiates b/w wds and accessbility
+
+scanGantt <- ggplot(avgScans %>% filter(lowScanDay==FALSE), 
+    aes(x=Date2, y=dataScan, fill=dataScan, color=dataScan)) + 
+  geom_point() +
+  labs(x = "Date", y = "Scan Type") +
+  scale_color_manual(values=colorPaletteGSA, aesthetics = c("color", "fill"), 
+    name = "Scan Type", labels = c("Accessibility", "USWDS"), guide = guide_legend(reverse = TRUE))
+
+ggsave(paste0(savepath, "scanGantt.png"), plot = scanGantt, device="png", width = 6.5, height = 4, units = "in")
+
+```
+
+```{r wdsPlot}
+wdsMonth <- websiteScanDF %>%
+  filter(Scan=="USWDS", Value!="NULL") %>%
+  group_by(Website, monthYear) %>%
+  summarise(maxUSWDS = max(as.numeric(Value))) %>%
+  ungroup() %>%
+  group_by(monthYear, maxUSWDS) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+uswdsSitesOverTimePlot <- ggplot(wdsMonth, aes(x=monthYear, y=Count, 
+  color=as.factor(maxUSWDS))) +
+  geom_line() +
+  ylim(35,55) +
+  labs(title="", x="Date", 
+       y="Number of websites", color = "USWDS Present") +
+  scale_color_manual(values=colorPaletteGSA, labels = c("No", "Yes"))
+
+ggsave(paste0(savepath, "uswdsSitesOverTime.png"), plot = uswdsSitesOverTimePlot, device="png", width = 6.5, height = 4, units = "in")
+
+# show percent uswds adoption over time
+adoptionByWeek <- websiteScanDF %>%
+  filter(Scan=="USWDS", Value!="NULL") %>%
+  group_by(weekYear) %>%
+  summarise(Adoption=mean(as.numeric(Value)))
+
+uswdsAdoptionPlot <- ggplot(adoptionByWeek, aes(x=weekYear, y=Adoption)) +
+  labs(x = "Date", y = "Percent of scanned sites using USWDS") +
+  geom_point(color="blue", fill="blue")
+
+
+ggsave(paste0(savepath, "uswdsPctAdoptionOverTime.png"), plot = uswdsAdoptionPlot, device="png", width = 6.5, height = 4, units = "in")
+
+```
+
+```{r issuesOverTime, eval=FALSE}
+# need to convert date to date type. 
+# There is a gap in scans between Nov 19,
+# 2020 and March 6, 2022
+
+# about 1/3 of observations are coerced to NA, will need to 
+# take a closer look at values before deciding that is okay
+# or if should be zero. Looks like all that are coerced to 
+# N/A have value "NULL" but there are also 0s in the data
+
+# `r sum(duplicated(colorRaw))` exact duplicates removed
+
+# three lags: website to indicate the first obs in the group; 
+# contrastIssues to understand if they are duplicates; days b/w 
+# scans to see if they are close together
+
+noDupWithin6Days <- websiteScanDF %>%
+  arrange(Scan, Website, Date2) %>%
+  mutate(lag = lag(Date2), daysBetween = Date2-lag(Date2),
+         sameWebsite= (Website==lag(Website)),
+         sameIssues = (Value==lag(Value)),
+         sameScan = (Scan==lag(Scan))) %>%
+  filter(!(daysBetween <=6 & daysBetween >=0 & sameWebsite==1 & sameIssues==1 & sameScan==1)) %>%
+  select(!c(lag, daysBetween, sameWebsite, sameIssues, sameScan))
+
+avgIssues <- noDupWithin6Days %>%
+  group_by(Date2, Scan) %>%
+  summarise(avgIssues = mean(as.numeric(Value), na.rm=TRUE))
+
+issuesOverTimePlot <- ggplot(avgIssues %>% filter(Scan!="USWDS", Date2<="2020-12-21"), aes(x=Date2, y=avgIssues, color = Scan, fill = Scan)) +
+  geom_point() +
+  # cutting off a couple of outliers as they are not necessary for what we want to get across
+  ylim(0, 25) +
+  labs(x = "Date", y = "Average Number of Issues") +
+  scale_color_manual(values=colorPaletteGSA, aesthetics = c("color", "fill"), 
+    name = "Accessibility Indicator", labels = c("Contrast", "HTML", "Image"))
+
+ggsave(paste0(savepath, "issuesOverTime.png"), plot = issuesOverTimePlot, device="png", width = 6.5, height = 4, units = "in")
+
+
+noDupScansByDay <- noDupWithin6Days %>%
+  group_by(Scan, Date2) %>%
+  summarize(Scans = n(),
+    NAScans=sum(Value=="NULL")) %>%
+  pivot_longer(c(Scans,NAScans), names_to = "type", values_to = "count")
+
+# ggplot(noDupScansByDay, aes(x=Date2, y=count, color=type, fill=type)) + 
+#   # geom_point() +
+#   geom_col(position="dodge") +
+#   facet_wrap(~Scan) +
+#   labs(x = "Date", y = "Count") +
+#   scale_color_manual(values=c(red, blue), aesthetics = c("color", "fill"), 
+#     name = "", labels = c("Null Values", "Total Scans"), guide = guide_legend(reverse = TRUE))
+
+
+```
+
+
+For an initial scan of the data, there appear to be several issues with the data. In most cases, the issues fit within two general types. 
+
+First, the scans do not appear to be fully automated. While our conversations with the digitaldashboard team indicated that scans should take place approximately every two weeks, there are both instances in which there are scans very close together (e.g., run within two days of each other) and some periods without comprehensive scans. When looking at the scan for color contrast issues, there are `r colorDup5` scans within 5 days of each other, `r colorDup6` scans within 6 days of each other, and `r colorDup7` scans within 7 days of each other. The large jump in scans at 7 days apart suggests that there is one legitimate scan done on exactly a one week interval. In nearly all cases, the number of issues are the same for both scans, so deleting one observation from the pair could be considered equivalent to de-duplicating by week. I de-duplicate any scans that occur within 6 or fewer days of each other
+
+The larger issue is that very few webpages have any html, image, or color scan data between the end of 2020 (either November or December) and May of 2022. This means there is only approximately a 6 month period in which we have both data on accessibility and an indicator for websites using USWDS. 
+
+Second, there are a number of "Null" values included in the data. It is unclear what these values represent given that there also are zero values. It is possible for a website without an image to have a value that is not applicable, which perhaps indicates a "Null" response, but there are also high frequencies of null values for color contrast issues---`r colorNAs`--- which do not seem to have the same likelihood for not applicable values. If the values are not applicable, and we are interested in catching problems when they do exist, we could coerce the "Null" values to zero. If the "Null" values indicate an error in the scan, it would be more appropriate to drop those observations. We treat the NA values as missing, and they are not used in any calculations.
+
+
+```{r htmlReadIn}
+
+
+# View(htmlDups %>%
+#   left_join(html, by=c("Website", "Week", "Year")) %>%
+#   arrange(Website, Year, Week))
+
+
+# There are a fair number of duplicate obs per week, but the same weeks
+# are popping up: 20/2018, 24/2018, 7/2020, some in 51/2020 and another couple
+# of random ones. Looks like June 13 and June 15, 2018 was two full scans, 
+# feb 13 and feb 14 2020, dec 18 and dec 21, 2020 has a couple, but de-duping on 
+# week/year and same outcome cuts dups down to 3
+
+
+# the exact duplicates are easy enough to delete
+
+
+# looks like a problem in dec 2020 with a real? scan run on the 17/18 and something that 
+# returned 22 out of 25 nulls on the 20. 
+
+# there are some violations of the assumption once treated always treated. some sites have
+# either some scans that return 0 in a longer sequence of 100s and at least one goes from
+# a long string of 100s to 0s, which in theory is possible, but would I think be a violation of
+# the law
+
+# could find indicator for any USWDS.Score==100 and earliest date, merge that back and see if
+# there are any obs that are 0 or NULL after that Week, Year (logical)
+# wdsDups <- getDups(wds)
+# wdsDups %>% group_by(weekYear) %>% summarise(count = n())
+# View(wdsDups %>%
+#   left_join(wds, by=c("Website", "weekYear")) %>%
+#   arrange(Website, weekYear))
+
+# View(wds %>% 
+#   filter(Website %in% c("fedidcard.gov", "fsd.gov", "sftool.gov")) %>%
+#   arrange(Website,Date2))
+
+# View(wdsDups %>%
+  # left_join(wds, by=c("Website", "weekYear")) %>%
+  # group_by(Date2, USWDS.Score) %>%
+  # summarize(Count=n()))
+
+# checking to see if there are any scans after the first appearance
+# of USWDS that then show a 0 value
+```
+
+
+
+## Methods 
+
+## Results
+
+## Threats to validity
+
+## Recommendations

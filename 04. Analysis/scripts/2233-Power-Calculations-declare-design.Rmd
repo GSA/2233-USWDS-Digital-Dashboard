@@ -1,0 +1,587 @@
+---
+title: "Power calculations"
+author: "Ben Jaques-Leslie"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+In process...
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+load(here::here("data","wds.rdata"))
+```
+
+
+```{r}
+install.packages(c(
+  "DeclareDesign",
+  "fabricatr",
+  "randomizr",
+  "estimatr",
+  "DesignLibrary"
+))
+```
+
+```{r}
+library(skimr)
+library(DeclareDesign)
+library(fabricatr)
+library(randomizr)
+library(estimatr)
+library(DesignLibrary)
+```
+
+
+```{r}
+# library(skimr)
+# image %>% skim()
+```
+
+
+```{r}
+library(DeclareDesign)
+
+design <-
+  declare_model(
+    N = 1112,
+    potential_outcomes(Y ~ rbinom(N, size = 1, prob = 0.5 + 0.05 * Z))
+  ) +
+  declare_inquiry(ATE = 0.05) +
+  declare_assignment(Z = complete_ra(N, m = 50)) +
+  declare_measurement(Y = reveal_outcomes(Y ~ Z)) +
+  declare_estimator(Y ~ Z, .method = lm_robust, inquiry = "ATE")
+
+diagnosands <-
+  declare_diagnosands(
+    bias = mean(estimate - estimand),
+    power = mean(p.value <= 0.05)
+  )
+
+diagnosis <- diagnose_design(design, diagnosands = diagnosands)
+```
+
+```{r}
+diagnosis
+```
+
+Design ideas
+
+Pre-Test Post-Test Design
+
+Using information from data for color contrasts
+
+```{r}
+prep_01 <- d %>%
+  filter(name == "color_contrast_issues") %>% 
+  summarise(mean = mean(value, na.rm = TRUE),
+            std = sd(value, na.rm = TRUE),
+            var = var(value, na.rm = TRUE))
+
+prep_01
+
+sd_t <- prep_01 %>% pull(std)
+mean_t <- prep_01 %>% pull(mean)
+var_t <- prep_01 %>% pull(var)
+```
+
+
+```{r}
+N <- 1112
+ate <- 0.05
+sd_1 <- sd_t
+sd_2 <- sd_t
+m <- mean_t
+rho <- 0.5
+attrition_rate <- 0
+```
+
+
+```{r}
+population <- declare_population(
+  N = N,
+  u_t1 = rnorm(N, mean = m) * sd_1,
+  u_t2 = rnorm(N, mean = rho * scale(u_t1), sd = sqrt(1 - rho^2)) *
+    sd_2,
+  Y_t1 = u_t1
+)
+
+population
+```
+
+Z is treatment.
+
+```{r}
+potential_outcomes <- declare_potential_outcomes(Y_t2 ~ u_t2 +
+  ate * Z)
+potential_outcomes
+```
+
+
+```{r}
+estimand <- declare_inquiry(ATE = mean(Y_t2_Z_1 - Y_t2_Z_0))
+estimand
+```
+
+
+```{r}
+assignment <- declare_assignment(Z = complete_ra(N))
+assignment
+```
+
+
+```{r}
+report <- declare_assignment(R = complete_ra(N, prob = 1 -
+  attrition_rate))
+report
+```
+
+
+```{r}
+reveal_t2 <- declare_reveal(Y_t2)
+reveal_t2
+```
+
+
+```{r}
+manipulation <- declare_step(
+  difference = (Y_t2 - Y_t1),
+  handler = fabricate
+)
+manipulation
+```
+
+
+```{r}
+pretest_lhs <- declare_estimator(difference ~ Z,
+  model = lm_robust,
+  inquiry = estimand, subset = R == 1, label = "Change score"
+)
+pretest_lhs
+```
+
+
+```{r}
+pretest_rhs <- declare_estimator(Y_t2 ~ Z + Y_t1,
+  model = lm_robust,
+  inquiry = estimand, subset = R == 1, label = "Condition on pretest"
+)
+pretest_rhs
+```
+
+
+```{r}
+posttest_only <- declare_estimator(Y_t2 ~ Z,
+  model = lm_robust,
+  inquiry = estimand, label = "Posttest only"
+)
+posttest_only
+```
+
+
+```{r}
+pretest_posttest_design <- population + potential_outcomes +
+  estimand + assignment + reveal_t2 + report + manipulation +
+  pretest_lhs + pretest_rhs + posttest_only
+pretest_posttest_design
+```
+
+```{r}
+diagnosis <- diagnose_design(pretest_posttest_design, sims = 25)
+diagnosis
+```
+
+Joe's method
+
+```{r}
+## POWER CALCULATION WITH VARIABLE TREATMENT EFFECTS
+
+# Simulation parameters.
+# How do each of these 3 affect the power of the test of
+#   H_0 : average treatment effect = 0?
+n <- 1000
+var.e <- 0.45                         # error variance
+ATE = .1                         # average treatment effect in population
+
+# Individual treatment effects in sample
+# effect <- runif(n, min=0, max=2*ATE)  
+# effect <- rnorm(n, mean=ATE, sd=0.05)
+# effect <- rgamma(n, shape=ATE)        # very right skewed
+effect <- rnbinom(n, size = 1, mu = ATE)
+
+B <- 2
+betahat <- matrix(nrow=B, ncol=2, NA)
+tStats <- rep(NA, B)
+for (b in 1:B) {
+    D <- sample(0:1, n, prob=c(0.5, 0.5), replace=TRUE) # randomize treatment
+    Y <- 1 + effect*D + rnorm(n, sd=sqrt(var.e))
+    reg <- lm(Y~D)
+    betahat[b, ] <- coef(reg)
+    tStats[b] <- coef(reg)["D"]/sqrt(vcov(reg)["D","D"])
+}
+colnames(betahat) <- names(coef(reg))
+
+# Why does this line give us the power of the test?
+power <- sum( abs(tStats) >= qnorm(0.975) )/B
+
+cat(paste("\nPower|alpha=0.05 = ", power, "\n"))
+
+cat(paste("\n    population ATE =", ATE))
+cat(paste("\n        sample ATE =", mean(effect)))
+cat(paste("\nmean estimated ATE =", mean(betahat[ ,"D"]), "\n"))
+
+# hist(betahat[ ,"D"], breaks=50)
+
+```
+
+```{r}
+## POWER CALCULATION WITH VARIABLE TREATMENT EFFECTS
+
+# Simulation parameters.
+# How do each of these 3 affect the power of the test of
+#   H_0 : average treatment effect = 0?
+n <- 1000
+var.e <- 0.45                         # error variance
+ATE = .1                         # average treatment effect in population
+panels <- 4
+treatment_at <- 3
+
+# Individual treatment effects in sample
+# effect <- runif(n, min=0, max=2*ATE)  
+# effect <- rnorm(n, mean=ATE, sd=0.05)
+# effect <- rgamma(n, shape=ATE)        # very right skewed
+effect <- rnbinom(n, size = 1, mu = ATE)
+
+B <- 5000
+betahat <- matrix(nrow=B, ncol=2, NA)
+tStats <- rep(NA, B)
+for (b in 1:B) {
+    D <- sample(0:1, n, prob=c(0.5, 0.5), replace=TRUE) # randomize treatment
+    pop_1 <- 
+      tibble(treatment = D,
+             effect = effect) %>% 
+      rownames_to_column(var = "id")
+    pop_2 <- 
+      1:panels %>% 
+      map_dfr(~mutate(pop_1,panel = .))
+    pop_3 <- 
+      pop_2 %>% 
+      mutate(treatment = if_else(panel < treatment_at,0,1))
+    pop <- 
+      pop_3 %>% 
+      mutate(outcome =  1 + effect*treatment + rnorm(n*panels, sd=sqrt(var.e)))
+    reg <- pop %>% lm(outcome ~ treatment + I(id) + I(panel), data = .)
+    betahat[b, ] <- coef(reg)["treatment"]
+    tStats[b] <- coef(reg)["treatment"]/sqrt(vcov(reg)["treatment","treatment"])
+    print(glue::glue("Iteration {b} complete. {Sys.time()}"))
+}
+colnames(betahat) <- names(coef(reg))[1:2]
+
+# Why does this line give us the power of the test?
+power <- sum( abs(tStats) >= qnorm(0.975) )/B
+
+cat(paste("\nPower|alpha=0.05 = ", power, "\n"))
+
+cat(paste("\n    population ATE =", ATE))
+cat(paste("\n        sample ATE =", mean(effect)))
+cat(paste("\nmean estimated ATE =", mean(betahat[ ,"treatment"]), "\n"))
+
+hist(betahat[ ,"treatment"], breaks=50)
+
+
+```
+
+```{r}
+joe_power_calculator <- function(in_n, in_ate)
+{
+  # Simulation parameters.
+# How do each of these 3 affect the power of the test of
+#   H_0 : average treatment effect = 0?
+n <- in_n
+var.e <- 0.45                         # error variance
+ATE = in_ate                         # average treatment effect in population
+
+# Individual treatment effects in sample
+# effect <- runif(n, min=0, max=2*ATE)  
+# effect <- rnorm(n, mean=ATE, sd=0.05)
+# effect <- rgamma(n, shape=ATE)        # very right skewed
+effect <- rnbinom(n, size = 1, mu = ATE)
+
+B <- 5000
+betahat <- matrix(nrow=B, ncol=2, NA)
+tStats <- rep(NA, B)
+for (b in 1:B) {
+    D <- sample(0:1, n, prob=c(0.5, 0.5), replace=TRUE) # randomize treatment
+    Y <- 1 + effect*D + rnorm(n, sd=sqrt(var.e))
+    reg <- lm(Y~D)
+    betahat[b, ] <- coef(reg)
+    tStats[b] <- coef(reg)["D"]/sqrt(vcov(reg)["D","D"])
+}
+colnames(betahat) <- names(coef(reg))
+
+# Why does this line give us the power of the test?
+power <- sum( abs(tStats) >= qnorm(0.975) )/B
+
+cat(paste("\nPower|alpha=0.05 = ", power, "\n"))
+
+cat(paste("\n    population ATE =", ATE))
+cat(paste("\n        sample ATE =", mean(effect)))
+cat(paste("\nmean estimated ATE =", mean(betahat[ ,"D"]), "\n"))
+
+out <- tibble(
+  n_size = n,
+  power = power,
+  ate_population = ATE,
+  ate_sample = mean(effect),
+  ate_mean_est = mean(betahat[ ,"D"])
+)
+return(out)
+}
+```
+
+```{r}
+joe_power_calculator(1000,.1)
+```
+
+```{r}
+total_websites <- d %>% summarise(n_distinct(website)) %>% pull()
+```
+
+```{r}
+sq <- seq.int(from = 100, to = signif(total_websites, digits = 2) + 100, by = 100)
+```
+
+
+```{r}
+signif(total_websites, digits = 2) + 100
+```
+
+
+```{r}
+power_calcs <- sq %>% 
+  map_dfr(~joe_power_calculator(.,.1))
+```
+
+
+
+
+
+```{r}
+tibble(x = rpois(n, lambda = mean_t)) %>% 
+  ggplot(aes(x = x)) +
+  geom_histogram()
+```
+
+```{r}
+
+tibble(x = rnbinom(n, size = 1, mu = mean_t)) %>% 
+  ggplot(aes(x = x)) +
+  geom_histogram()
+```
+
+```{r}
+x1 <- rnbinom(500, mu = 4, size = 1)
+x2 <- rnbinom(500, mu = 4, size = 10)
+x3 <- rnbinom(500, mu = 4, size = 100)
+h1 <- hist(x1, breaks = 20, plot = FALSE)
+h2 <- hist(x2, breaks = h1$breaks, plot = FALSE)
+h3 <- hist(x3, breaks = h1$breaks, plot = FALSE)
+barplot(rbind(h1$counts, h2$counts, h3$counts),
+        beside = TRUE, col = c("red","blue","cyan"),
+        names.arg = round(h1$breaks[-length(h1$breaks)]))
+```
+
+
+
+
+```{r}
+N <- 100
+assignment_prob <- 0.5
+control_mean <- 0
+control_sd <- 1
+treatment_mean <- 0.1
+treatment_sd <- 1
+rho <- 1
+
+population <- declare_population(N = N, u_0 = rnorm(N), u_1 = rnorm(n = N, 
+    mean = rho * u_0, sd = sqrt(1 - rho^2)))
+potential_outcomes <- declare_potential_outcomes(Y ~ (1 - 
+    Z) * (u_0 * control_sd + control_mean) + Z * (u_1 * treatment_sd + 
+    treatment_mean))
+estimand <- declare_inquiry(ATE = mean(Y_Z_1 - Y_Z_0))
+assignment <- declare_assignment(Z = complete_ra(N, prob = assignment_prob))
+reveal_Y <- declare_reveal()
+estimator <- declare_estimator(Y ~ Z, inquiry = estimand)
+two_arm_design <- population + potential_outcomes + estimand + 
+    assignment + reveal_Y + estimator
+diagnosis <- diagnose_design(two_arm_design, sims = 25)
+diagnosis
+```
+
+
+
+Pre-Test Post-Test Design
+
+```{r}
+N <- 1112
+ate <- 0.05
+sd_1 <- 1
+sd_2 <- 1
+rho <- 0.5
+attrition_rate <- 0
+```
+
+
+```{r}
+population <- declare_population(
+  N = N,
+  u_t1 = rnorm(N) * sd_1,
+  u_t2 = rnorm(N, mean = rho * scale(u_t1), sd = sqrt(1 - rho^2)) *
+    sd_2,
+  Y_t1 = u_t1
+)
+
+population
+```
+
+Z is treatment.
+
+```{r}
+potential_outcomes <- declare_potential_outcomes(Y_t2 ~ u_t2 +
+  ate * Z)
+potential_outcomes
+```
+
+
+```{r}
+estimand <- declare_inquiry(ATE = mean(Y_t2_Z_1 - Y_t2_Z_0))
+estimand
+```
+
+
+```{r}
+assignment <- declare_assignment(Z = complete_ra(N))
+assignment
+```
+
+
+```{r}
+report <- declare_assignment(R = complete_ra(N, prob = 1 -
+  attrition_rate))
+report
+```
+
+
+```{r}
+reveal_t2 <- declare_reveal(Y_t2)
+reveal_t2
+```
+
+
+```{r}
+manipulation <- declare_step(
+  difference = (Y_t2 - Y_t1),
+  handler = fabricate
+)
+manipulation
+```
+
+
+```{r}
+pretest_lhs <- declare_estimator(difference ~ Z,
+  model = lm_robust,
+  inquiry = estimand, subset = R == 1, label = "Change score"
+)
+pretest_lhs
+```
+
+
+```{r}
+pretest_rhs <- declare_estimator(Y_t2 ~ Z + Y_t1,
+  model = lm_robust,
+  inquiry = estimand, subset = R == 1, label = "Condition on pretest"
+)
+pretest_rhs
+```
+
+
+```{r}
+posttest_only <- declare_estimator(Y_t2 ~ Z,
+  model = lm_robust,
+  inquiry = estimand, label = "Posttest only"
+)
+posttest_only
+```
+
+
+```{r}
+pretest_posttest_design <- population + potential_outcomes +
+  estimand + assignment + reveal_t2 + report + manipulation +
+  pretest_lhs + pretest_rhs + posttest_only
+pretest_posttest_design
+```
+
+```{r}
+diagnosis <- diagnose_design(pretest_posttest_design, sims = 25)
+diagnosis
+```
+
+
+Block-Cluster-Two-Arm Design
+
+
+
+```{r}
+rbinom(1112, 1, .5)
+```
+
+```{r}
+library(DeclareDesign)
+
+design <-
+  declare_model(
+    N = 100,
+    potential_outcomes(Y ~ rbinom(N, size = 1, prob = 0.5 + 0.05 * Z))
+  ) +
+  declare_inquiry(ATE = 0.05) +
+  declare_assignment(Z = complete_ra(N, m = 50)) +
+  declare_measurement(Y = reveal_outcomes(Y ~ Z)) +
+  declare_estimator(Y ~ Z, model = lm_robust, inquiry = "ATE")
+
+diagnosands <-
+  declare_diagnosands(
+    bias = mean(estimate - estimand),
+    power = mean(p.value <= 0.05)
+  )
+
+diagnosis <- diagnose_design(design, diagnosands = diagnosands)
+```
+
+```{r}
+diagnosis
+```
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

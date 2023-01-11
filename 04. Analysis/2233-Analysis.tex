@@ -1,0 +1,665 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{lmodern}
+\usepackage{ifxetex,ifluatex}
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\hypersetup{
+  pdftitle={USWDS Difference in Differences analysis},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+\urlstyle{same} % disable monospaced font for URLs
+\usepackage[margin=1in]{geometry}
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\ifluatex
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+
+\title{USWDS Difference in Differences analysis}
+\author{}
+\date{\vspace{-2.5em}}
+
+\begin{document}
+\maketitle
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{library}\NormalTok{(tidyverse)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --
+\end{verbatim}
+
+\begin{verbatim}
+## v ggplot2 3.3.5     v purrr   0.3.4
+## v tibble  3.1.6     v dplyr   1.0.8
+## v tidyr   1.2.0     v stringr 1.4.0
+## v readr   2.1.2     v forcats 0.5.1
+\end{verbatim}
+
+\begin{verbatim}
+## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# library(did)}
+\FunctionTok{library}\NormalTok{(lubridate)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## 
+## Attaching package: 'lubridate'
+\end{verbatim}
+
+\begin{verbatim}
+## The following objects are masked from 'package:base':
+## 
+##     date, intersect, setdiff, union
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{filepath }\OtherTok{\textless{}{-}} \StringTok{"G://Shared drives//MSG Projects//3.0 Digital Government (LQ3)//2233 USWDS Digital Dashboard//03. Data Collection//"}
+\NormalTok{colorName }\OtherTok{\textless{}{-}} \StringTok{"color\_contrasts.csv"}
+\NormalTok{htmlName }\OtherTok{\textless{}{-}} \StringTok{"html\_attribute.csv"}
+\NormalTok{imageName }\OtherTok{\textless{}{-}} \StringTok{"missing\_image.csv"}
+\NormalTok{wdsName }\OtherTok{\textless{}{-}} \StringTok{"uswds\_data.csv"}
+
+\CommentTok{\# need to convert date to date type. }
+\CommentTok{\# There is a gap in scans between Nov 19,}
+\CommentTok{\# 2020 and March 6, 2022}
+
+\CommentTok{\# consider adjusting with lag to deduplicate on days}
+\CommentTok{\# between scans and not same week}
+\NormalTok{color }\OtherTok{\textless{}{-}} \FunctionTok{read.csv}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(filepath, colorName)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{rename}\NormalTok{(}\AttributeTok{ContrastIssues=}\NormalTok{Number.of.Color.Contrast.Issues) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{Date2=}\FunctionTok{as\_date}\NormalTok{(Date, }\AttributeTok{format=}\StringTok{"\%d{-}\%b{-}\%y"}\NormalTok{),}
+    \CommentTok{\# ContrastIssues=as.numeric(ContrastIssues),}
+    \AttributeTok{weekYear =} \FunctionTok{floor\_date}\NormalTok{(Date2, }\AttributeTok{unit=}\StringTok{"week"}\NormalTok{),}
+    \AttributeTok{monthYear =} \FunctionTok{floor\_date}\NormalTok{(Date2, }\AttributeTok{unit=}\StringTok{"month"}\NormalTok{),}
+    \AttributeTok{Week=}\FunctionTok{week}\NormalTok{(Date2),}
+    \AttributeTok{Year=}\FunctionTok{year}\NormalTok{(Date2)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{distinct}\NormalTok{(Website, weekYear, ContrastIssues, }\AttributeTok{.keep\_all=}\ConstantTok{TRUE}\NormalTok{)}
+
+
+\CommentTok{\# colorNoDup \textless{}{-} color \%\textgreater{}\%}
+\CommentTok{\#   arrange(Website, Date2) \%\textgreater{}\%}
+\CommentTok{\#   mutate(lag = lag(Date2), daysBetween = Date2{-}lag(Date2),}
+\CommentTok{\#          sameWebsite= (Website==lag(Website)),}
+\CommentTok{\#          sameIssues = (ContrastIssues==lag(ContrastIssues))) \%\textgreater{}\%}
+\CommentTok{\#   filter(!(daysBetween \textless{}=5 \& daysBetween \textgreater{}=0 \& sameWebsite==1 \& sameIssues==1))}
+
+\CommentTok{\# three lags: website to indicate the first obs in the group; }
+\CommentTok{\# coloro issue to understand if they are duplicates; days b/w }
+\CommentTok{\# scans to see if they are close together}
+\CommentTok{\# about 1/3 of observations are coerced to NA, will need to }
+\CommentTok{\# take a closer look at values before deciding that is okay}
+\CommentTok{\# or if should be zero. Looks like all that are coerced to }
+\CommentTok{\# N/A have value "NULL" but there are also 0s in the data}
+
+\NormalTok{html }\OtherTok{\textless{}{-}} \FunctionTok{read.csv}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(filepath, htmlName))}\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{rename}\NormalTok{(}\AttributeTok{Website=}\NormalTok{Website.Name, }\AttributeTok{Date=}\NormalTok{date, }\AttributeTok{HTMLIssues=}\NormalTok{Number.of.HTML.Aattribute.issues) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{Date2=}\FunctionTok{as\_date}\NormalTok{(Date, }\AttributeTok{format=}\StringTok{"\%d{-}\%b{-}\%y"}\NormalTok{),}
+    \AttributeTok{weekYear =} \FunctionTok{floor\_date}\NormalTok{(Date2, }\AttributeTok{unit=}\StringTok{"week"}\NormalTok{),}
+    \AttributeTok{monthYear =} \FunctionTok{floor\_date}\NormalTok{(Date2, }\AttributeTok{unit=}\StringTok{"month"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+  \CommentTok{\# distinct(Website, Date2, Number.of.HTML.Aattribute.issues, .keep\_all=TRUE)}
+  \FunctionTok{distinct}\NormalTok{(Website, weekYear, HTMLIssues, }\AttributeTok{.keep\_all=}\ConstantTok{TRUE}\NormalTok{)}
+
+\CommentTok{\# check if scans on same week are duplicate observations }
+\NormalTok{getDups }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{(df) \{}
+\NormalTok{  dups }\OtherTok{\textless{}{-}}\NormalTok{ df }\SpecialCharTok{\%\textgreater{}\%} 
+    \FunctionTok{group\_by}\NormalTok{(Website, weekYear) }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{summarise}\NormalTok{(}\AttributeTok{count=}\FunctionTok{n}\NormalTok{()) }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{filter}\NormalTok{(count}\SpecialCharTok{\textgreater{}}\DecValTok{1}\NormalTok{) }
+  \FunctionTok{return}\NormalTok{(dups)}
+\NormalTok{\}}
+
+\NormalTok{htmlDups }\OtherTok{\textless{}{-}} \FunctionTok{getDups}\NormalTok{(html)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## `summarise()` has grouped output by 'Website'. You can override using the
+## `.groups` argument.
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{htmlDups }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{group\_by}\NormalTok{(weekYear) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{summarise}\NormalTok{(}\AttributeTok{count =} \FunctionTok{n}\NormalTok{())}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 1 x 2
+##   weekYear   count
+##   <date>     <int>
+## 1 2020-02-09     3
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# View(htmlDups \%\textgreater{}\%}
+\CommentTok{\#   left\_join(html, by=c("Website", "Week", "Year")) \%\textgreater{}\%}
+\CommentTok{\#   arrange(Website, Year, Week))}
+
+
+\CommentTok{\# There are a fair number of duplicate obs per week, but the same weeks}
+\CommentTok{\# are popping up: 20/2018, 24/2018, 7/2020, some in 51/2020 and another couple}
+\CommentTok{\# of random ones. Looks like June 13 and June 15, 2018 was two full scans, }
+\CommentTok{\# feb 13 and feb 14 2020, dec 18 and dec 21, 2020 has a couple, but de{-}duping on }
+\CommentTok{\# week/year and same outcome cuts dups down to 3}
+
+
+\CommentTok{\# the exact duplicates are easy enough to delete}
+
+\NormalTok{image }\OtherTok{\textless{}{-}} \FunctionTok{read.csv}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(filepath, imageName))}\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{rename}\NormalTok{(}\AttributeTok{Website=}\NormalTok{Website.Name, }\AttributeTok{ImageIssues=}\NormalTok{Number.of.Missing.Image.Issues) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{Date2=}\FunctionTok{as\_date}\NormalTok{(Date, }\AttributeTok{format=}\StringTok{"\%d{-}\%b{-}\%y"}\NormalTok{),}
+    \AttributeTok{weekYear =} \FunctionTok{floor\_date}\NormalTok{(Date2, }\AttributeTok{unit=}\StringTok{"week"}\NormalTok{),}
+    \AttributeTok{monthYear =} \FunctionTok{floor\_date}\NormalTok{(Date2, }\AttributeTok{unit=}\StringTok{"month"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{distinct}\NormalTok{(Website, weekYear, ImageIssues, }\AttributeTok{.keep\_all=}\ConstantTok{TRUE}\NormalTok{)}
+
+\CommentTok{\# still a few duplicates in the week that have different values}
+\CommentTok{\# one way to treat could be to take the mean or the min/max}
+\NormalTok{imageDups }\OtherTok{\textless{}{-}} \FunctionTok{getDups}\NormalTok{(image)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## `summarise()` has grouped output by 'Website'. You can override using the
+## `.groups` argument.
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{imageDups }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{group\_by}\NormalTok{(weekYear) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{summarise}\NormalTok{(}\AttributeTok{count =} \FunctionTok{n}\NormalTok{())}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 1 x 2
+##   weekYear   count
+##   <date>     <int>
+## 1 2020-02-09     3
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# wds scan starts in 25th week of 2020, so far fewer observations, only 52 weeks}
+\CommentTok{\# also only 99 websites scanned instead of 1112 for others}
+\CommentTok{\# maybe the correct order here is to use the 99 websites to join the accessibility }
+\CommentTok{\# scores, but for wds set the value to 0 for any obs prior to when the scans started}
+\CommentTok{\# although that may not be entirely accurate, or just have to restrict to those 52 }
+\CommentTok{\# weeks}
+\NormalTok{wds }\OtherTok{\textless{}{-}} \FunctionTok{read.csv}\NormalTok{(}\FunctionTok{paste0}\NormalTok{(filepath, wdsName))}\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{rename}\NormalTok{(}\AttributeTok{Website=}\NormalTok{Website.Name) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{Date2=}\FunctionTok{as\_date}\NormalTok{(Date, }\AttributeTok{format=}\StringTok{"\%d{-}\%b{-}\%y"}\NormalTok{),}
+    \AttributeTok{weekYear =} \FunctionTok{floor\_date}\NormalTok{(Date2, }\AttributeTok{unit=}\StringTok{"week"}\NormalTok{),}
+    \AttributeTok{monthYear =} \FunctionTok{floor\_date}\NormalTok{(Date2, }\AttributeTok{unit=}\StringTok{"month"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{distinct}\NormalTok{(Website, weekYear, USWDS.Score, }\AttributeTok{.keep\_all=}\ConstantTok{TRUE}\NormalTok{)}
+
+\CommentTok{\# looks like a problem in dec 2020 with a real? scan run on the 17/18 and something that }
+\CommentTok{\# returned 22 out of 25 nulls on the 20. }
+
+\CommentTok{\# there are some violations of the assumption once treated always treated. some sites have}
+\CommentTok{\# either some scans that return 0 in a longer sequence of 100s and at least one goes from}
+\CommentTok{\# a long string of 100s to 0s, which in theory is possible, but would I think be a violation of}
+\CommentTok{\# the law}
+
+\CommentTok{\# could find indicator for any USWDS.Score==100 and earliest date, merge that back and see if}
+\CommentTok{\# there are any obs that are 0 or NULL after that Week, Year (logical)}
+\NormalTok{wdsDups }\OtherTok{\textless{}{-}} \FunctionTok{getDups}\NormalTok{(wds)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## `summarise()` has grouped output by 'Website'. You can override using the
+## `.groups` argument.
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{wdsDups }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{group\_by}\NormalTok{(weekYear) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{summarise}\NormalTok{(}\AttributeTok{count =} \FunctionTok{n}\NormalTok{())}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 0 x 2
+## # ... with 2 variables: weekYear <date>, count <int>
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# View(wdsDups \%\textgreater{}\%}
+\CommentTok{\#   left\_join(wds, by=c("Website", "weekYear")) \%\textgreater{}\%}
+\CommentTok{\#   arrange(Website, weekYear))}
+
+\FunctionTok{View}\NormalTok{(wds }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{filter}\NormalTok{(Website }\SpecialCharTok{\%in\%} \FunctionTok{c}\NormalTok{(}\StringTok{"fedidcard.gov"}\NormalTok{, }\StringTok{"fsd.gov"}\NormalTok{, }\StringTok{"sftool.gov"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{arrange}\NormalTok{(Website,Date2))}
+
+\CommentTok{\# View(wdsDups \%\textgreater{}\%}
+  \CommentTok{\# left\_join(wds, by=c("Website", "weekYear")) \%\textgreater{}\%}
+  \CommentTok{\# group\_by(Date2, USWDS.Score) \%\textgreater{}\%}
+  \CommentTok{\# summarize(Count=n()))}
+
+\CommentTok{\# checking to see if there are any scans after the first appearance}
+\CommentTok{\# of USWDS that then show a 0 value}
+\NormalTok{wdsMin }\OtherTok{\textless{}{-}}\NormalTok{ wds }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(USWDS.Score}\SpecialCharTok{==}\DecValTok{100}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(Website) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarize}\NormalTok{(}\AttributeTok{wdsMin =} \FunctionTok{min}\NormalTok{(Date2))}
+
+\NormalTok{wdsSwitch }\OtherTok{\textless{}{-}}\NormalTok{ wds }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{left\_join}\NormalTok{(wdsMin, }\AttributeTok{by=}\StringTok{"Website"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{revert =} \FunctionTok{if\_else}\NormalTok{(Date2}\SpecialCharTok{\textgreater{}}\NormalTok{wdsMin }\SpecialCharTok{\&}\NormalTok{ USWDS.Score }\SpecialCharTok{!=} \DecValTok{100}\NormalTok{, }\DecValTok{1}\NormalTok{, }\DecValTok{0}\NormalTok{))}
+
+\FunctionTok{View}\NormalTok{(wdsSwitch }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{group\_by}\NormalTok{(Website, revert) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarize}\NormalTok{(}\AttributeTok{count =} \FunctionTok{n}\NormalTok{()) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{arrange}\NormalTok{(Website))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## `summarise()` has grouped output by 'Website'. You can override using the
+## `.groups` argument.
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# look at those that have \textgreater{}=8 obs that USWDS.Score==0 after at least one ==100}
+\CommentTok{\# think about forcing them to 100 after that date? or drop? maybe sensitivity }
+\CommentTok{\# analysis for dropping first then including with forced 100 and caveating?}
+\FunctionTok{View}\NormalTok{(wds }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(Website }\SpecialCharTok{\%in\%} \FunctionTok{c}\NormalTok{(}\StringTok{"challenge.gov"}\NormalTok{, }\StringTok{"ecpic.gov"}\NormalTok{, }\StringTok{"fedidcard.gov"}\NormalTok{, }
+    \StringTok{"fleet.gov"}\NormalTok{, }\StringTok{"fpc.gov"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{arrange}\NormalTok{(Website, Date2))}
+
+\CommentTok{\# mostly a good match on the accessibility factors at the week level}
+\NormalTok{accessibility }\OtherTok{\textless{}{-}}\NormalTok{ color }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{left\_join}\NormalTok{(html, }\AttributeTok{by=}\FunctionTok{c}\NormalTok{(}\StringTok{"Website"}\NormalTok{, }\StringTok{"weekYear"}\NormalTok{), }\AttributeTok{suffix=}\FunctionTok{c}\NormalTok{(}\StringTok{"\_color"}\NormalTok{,}\StringTok{"\_html"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{left\_join}\NormalTok{(image, }\AttributeTok{by=}\FunctionTok{c}\NormalTok{(}\StringTok{"Website"}\NormalTok{, }\StringTok{"weekYear"}\NormalTok{), }\AttributeTok{suffix=}\FunctionTok{c}\NormalTok{(}\StringTok{"\_color"}\NormalTok{,}\StringTok{"\_image"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{left\_join}\NormalTok{(wds, }\AttributeTok{by=}\FunctionTok{c}\NormalTok{(}\StringTok{"Website"}\NormalTok{, }\StringTok{"weekYear"}\NormalTok{), }\AttributeTok{suffix=}\FunctionTok{c}\NormalTok{(}\StringTok{"\_color"}\NormalTok{,}\StringTok{"\_wds"}\NormalTok{)) }
+
+\CommentTok{\# goo \textless{}{-} wds \%\textgreater{}\%}
+\CommentTok{\#   left\_join(html, by=c("Website", "Week", "Year")) \%\textgreater{}\%}
+\CommentTok{\#   left\_join(image, by=c("Website", "Week", "Year")) \%\textgreater{}\%}
+\CommentTok{\#   left\_join(color, by=c("Website", "Week", "Year"))}
+\end{Highlighting}
+\end{Shaded}
+
+\hypertarget{introduction}{%
+\subsection{Introduction}\label{introduction}}
+
+The U.S. Web Design System (USWDS) is a set of web design standards
+intended to make websites more accessible. In a prior study, the Office
+of Customer Experience and Office of Evaluation Sciences established a
+positive correlation between using key elements of the USWDS and higher
+website accessibility scores. This analysis is an extension of that
+effort to infer a causal relationship between use of the USWDS and
+increased website accessibility.
+
+\hypertarget{data}{%
+\subsection{Data}\label{data}}
+
+The current analysis relies on data gathered for digitaldashboard.gov.
+
+There are four main components of the data:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  html: this element counts the number of html attribute issues on a
+  webpage.
+\item
+  Image: this element indicates the number of images with missing text
+  descriptions.
+\item
+  Color: the element indicates the total number of color contrast
+  issues.
+\item
+  USWDS: this element indicates whether any of the USWDS components are
+  flagged in a scan of the webpage. This takes on either a yes or no
+  value, although there are also ``null'' values that could indicate
+  errors in the scan.
+\end{enumerate}
+
+For an initial scan of the data, there appear to be several issues with
+the data. In most cases, the issues fit within two general types.
+
+First, the scans do not appear to be fully automated. While our
+conversations with the digitaldashboard team indicated that scans should
+take place approximately every two weeks, there are both instances in
+which there are scans very close together (e.g., run within two days of
+each other) and some periods without comprehensive scans. For the first
+issue---scans that are run close together---I use only one scan. In
+nearly all cases, the values are the same, so this is equivalent to
+de-duplicating each website by week. The larger issue is that very few
+webpages have any html, image, or color scan data between the end of
+2020 (either November or December) and May of 2022. This means there is
+only approximately a 6 month period in which we have both data on
+accessibility and an indicator for websites using USWDS.
+
+Second, there are a number of ``Null'' values included in the data. It
+is unclear what these values represent given that there also are zero
+values. It is possible for a website without an image to have a value
+that is not applicable, which perhaps indicates a ``Null'' response, but
+there are also high frequencies of null values for color contrast and
+html attributes, which do not seem to have the same possibility for not
+applicable values. If the values are not applicable, and we are
+interested in catching problems when they do exist, a simple solution is
+to coerce the ``Null'' values to zero. If the ``Null'' values indicate
+an error in the scan, it would be more appropriate to drop those
+observations.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{getDups }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{(df) \{}
+\NormalTok{  dups }\OtherTok{\textless{}{-}}\NormalTok{ df }\SpecialCharTok{\%\textgreater{}\%} 
+    \FunctionTok{group\_by}\NormalTok{(Website, weekYear) }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{summarise}\NormalTok{(}\AttributeTok{count=}\FunctionTok{n}\NormalTok{()) }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{filter}\NormalTok{(count}\SpecialCharTok{\textgreater{}}\DecValTok{1}\NormalTok{) }
+  \FunctionTok{return}\NormalTok{(dups)}
+\NormalTok{\}}
+
+\NormalTok{htmlDups }\OtherTok{\textless{}{-}} \FunctionTok{getDups}\NormalTok{(html)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## `summarise()` has grouped output by 'Website'. You can override using the
+## `.groups` argument.
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{htmlDups }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{group\_by}\NormalTok{(weekYear) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{summarise}\NormalTok{(}\AttributeTok{count =} \FunctionTok{n}\NormalTok{())}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 1 x 2
+##   weekYear   count
+##   <date>     <int>
+## 1 2020-02-09     3
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# View(htmlDups \%\textgreater{}\%}
+\CommentTok{\#   left\_join(html, by=c("Website", "Week", "Year")) \%\textgreater{}\%}
+\CommentTok{\#   arrange(Website, Year, Week))}
+
+
+\CommentTok{\# There are a fair number of duplicate obs per week, but the same weeks}
+\CommentTok{\# are popping up: 20/2018, 24/2018, 7/2020, some in 51/2020 and another couple}
+\CommentTok{\# of random ones. Looks like June 13 and June 15, 2018 was two full scans, }
+\CommentTok{\# feb 13 and feb 14 2020, dec 18 and dec 21, 2020 has a couple, but de{-}duping on }
+\CommentTok{\# week/year and same outcome cuts dups down to 3}
+\CommentTok{\# the exact duplicates are easy enough to delete}
+
+
+\NormalTok{imageDups }\OtherTok{\textless{}{-}} \FunctionTok{getDups}\NormalTok{(image)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## `summarise()` has grouped output by 'Website'. You can override using the
+## `.groups` argument.
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{imageDups }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{group\_by}\NormalTok{(weekYear) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{summarise}\NormalTok{(}\AttributeTok{count =} \FunctionTok{n}\NormalTok{())}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 1 x 2
+##   weekYear   count
+##   <date>     <int>
+## 1 2020-02-09     3
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{names}\NormalTok{(image)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] "Website"     "ImageIssues" "Date"        "Date2"       "weekYear"   
+## [6] "monthYear"
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{View}\NormalTok{(image }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{missing=}\NormalTok{ImageIssues}\SpecialCharTok{==}\StringTok{"NULL"}\NormalTok{)}\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(}\FunctionTok{year}\NormalTok{(monthYear)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}\AttributeTok{missing=}\FunctionTok{sum}\NormalTok{(missing)))}
+
+\NormalTok{imageNoNullByDate }\OtherTok{\textless{}{-}}\NormalTok{ image }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(ImageIssues}\SpecialCharTok{!=}\StringTok{"NULL"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(weekYear) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarize}\NormalTok{(}\AttributeTok{avgImageIssues=}\FunctionTok{mean}\NormalTok{(}\FunctionTok{as.numeric}\NormalTok{(ImageIssues))) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{right\_join}\NormalTok{(image, }\AttributeTok{by=}\FunctionTok{c}\NormalTok{(}\StringTok{"weekYear"}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# show uswds uptake overtime (by month)}
+
+\NormalTok{wdsMonth }\OtherTok{\textless{}{-}}\NormalTok{ wds }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(USWDS.Score}\SpecialCharTok{!=}\StringTok{"NULL"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(Website, monthYear) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}\AttributeTok{maxUSWDS =} \FunctionTok{max}\NormalTok{(}\FunctionTok{as.numeric}\NormalTok{(USWDS.Score))) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{ungroup}\NormalTok{() }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(monthYear, maxUSWDS) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}\AttributeTok{Count =} \FunctionTok{n}\NormalTok{()) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{ungroup}\NormalTok{() }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(Count}\SpecialCharTok{\textgreater{}}\DecValTok{1}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## `summarise()` has grouped output by 'Website'. You can override using the
+## `.groups` argument.
+## `summarise()` has grouped output by 'monthYear'. You can override using the
+## `.groups` argument.
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{ggplot}\NormalTok{(wdsMonth, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{monthYear, }\AttributeTok{y=}\NormalTok{Count, }
+  \AttributeTok{color=}\FunctionTok{as.factor}\NormalTok{(maxUSWDS))) }\SpecialCharTok{+}
+  \FunctionTok{geom\_line}\NormalTok{() }\SpecialCharTok{+}
+  \FunctionTok{ylim}\NormalTok{(}\DecValTok{30}\NormalTok{,}\DecValTok{60}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}\AttributeTok{title=}\StringTok{"USWDS use over time"}\NormalTok{, }\AttributeTok{x=}\StringTok{"Date"}\NormalTok{, }
+       \AttributeTok{y=}\StringTok{"Number of websites"}\NormalTok{, }\AttributeTok{color =} \StringTok{"USWDS Present"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{scale\_color\_discrete}\NormalTok{(}\AttributeTok{labels =} \FunctionTok{c}\NormalTok{(}\StringTok{"No"}\NormalTok{, }\StringTok{"Yes"}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{2233-Analysis_files/figure-latex/descriptivePlots-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# ggsave("uswdsSitesOverTime.png", device = "png")}
+
+
+\CommentTok{\# show percent uswds adoption over time}
+\NormalTok{adoptionByWeek }\OtherTok{\textless{}{-}}\NormalTok{ wds }\SpecialCharTok{\%\textgreater{}\%} 
+  \FunctionTok{filter}\NormalTok{(USWDS.Score}\SpecialCharTok{!=}\StringTok{"NULL"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(weekYear) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}\AttributeTok{Adoption=}\FunctionTok{mean}\NormalTok{(}\FunctionTok{as.numeric}\NormalTok{(USWDS.Score)))}
+
+\FunctionTok{ggplot}\NormalTok{(adoptionByWeek, }\FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{weekYear, }\AttributeTok{y=}\NormalTok{Adoption)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_point}\NormalTok{()}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{2233-Analysis_files/figure-latex/descriptivePlots-2.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# facet avg number of accessibility issues over time}
+\CommentTok{\# will need some transformation to put score type as column}
+\NormalTok{accessibilityLong }\OtherTok{\textless{}{-}}\NormalTok{ accessibility }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{pivot\_longer}\NormalTok{(}\AttributeTok{cols=}\FunctionTok{contains}\NormalTok{(}\StringTok{"ssues"}\NormalTok{), }\AttributeTok{names\_to =} \StringTok{"ScanType"}\NormalTok{, }\AttributeTok{values\_to =} \StringTok{"Issues"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(Issues}\SpecialCharTok{!=}\StringTok{"NULL"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(weekYear, ScanType) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}\AttributeTok{MeanIssues=}\FunctionTok{mean}\NormalTok{(}\FunctionTok{as.numeric}\NormalTok{(Issues), }\AttributeTok{na.rm=}\ConstantTok{TRUE}\NormalTok{))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## `summarise()` has grouped output by 'weekYear'. You can override using the
+## `.groups` argument.
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{issuePlot}\OtherTok{\textless{}{-}}\FunctionTok{ggplot}\NormalTok{(accessibilityLong }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(weekYear}\SpecialCharTok{\textless{}}\StringTok{"2022{-}01{-}01"}\NormalTok{),}
+  \FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{weekYear, }\AttributeTok{y=}\NormalTok{MeanIssues, }\AttributeTok{color=}\NormalTok{ScanType)) }\SpecialCharTok{+}
+  \FunctionTok{geom\_jitter}\NormalTok{() }\SpecialCharTok{+}
+  \FunctionTok{ylim}\NormalTok{(}\DecValTok{0}\NormalTok{,}\DecValTok{30}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}\AttributeTok{title=}\StringTok{"Average number of accessibility issues over time"}\NormalTok{,}
+       \AttributeTok{x=}\StringTok{"Date"}\NormalTok{, }\AttributeTok{y=}\StringTok{"Average \# of issues"}\NormalTok{, }\AttributeTok{color=}\StringTok{"Scan type"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{scale\_color\_discrete}\NormalTok{(}\AttributeTok{labels=}\FunctionTok{c}\NormalTok{(}\StringTok{"Contrast"}\NormalTok{, }\StringTok{"HTML"}\NormalTok{, }\StringTok{"Image"}\NormalTok{))}
+
+\NormalTok{issuePlot}\OtherTok{\textless{}{-}}\FunctionTok{ggplot}\NormalTok{(accessibilityLong }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{filter}\NormalTok{(weekYear}\SpecialCharTok{\textless{}}\StringTok{"2022{-}01{-}01"}\NormalTok{),}
+  \FunctionTok{aes}\NormalTok{(}\AttributeTok{x=}\NormalTok{weekYear, }\AttributeTok{y=}\NormalTok{MeanIssues, }\AttributeTok{color=}\NormalTok{ScanType)) }\SpecialCharTok{+}
+  \FunctionTok{facet\_wrap}\NormalTok{(}\StringTok{"ScanType"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{geom\_jitter}\NormalTok{() }\SpecialCharTok{+}
+  \FunctionTok{ylim}\NormalTok{(}\DecValTok{0}\NormalTok{,}\DecValTok{30}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{labs}\NormalTok{(}\AttributeTok{title=}\StringTok{"Average number of accessibility issues over time"}\NormalTok{,}
+       \AttributeTok{x=}\StringTok{"Date"}\NormalTok{, }\AttributeTok{y=}\StringTok{"Average \# of issues"}\NormalTok{, }\AttributeTok{color=}\StringTok{"Scan type"}\NormalTok{) }\SpecialCharTok{+}
+  \FunctionTok{scale\_color\_discrete}\NormalTok{(}\AttributeTok{labels=}\FunctionTok{c}\NormalTok{(}\StringTok{"Contrast"}\NormalTok{, }\StringTok{"HTML"}\NormalTok{, }\StringTok{"Image"}\NormalTok{))}
+
+
+\NormalTok{issuePlot}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning: Removed 3 rows containing missing values (geom_point).
+\end{verbatim}
+
+\includegraphics{2233-Analysis_files/figure-latex/descriptivePlots-3.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# ggsave("accessibilityIssuesOverTime.png", device = "png")}
+\end{Highlighting}
+\end{Shaded}
+
+\hypertarget{methods}{%
+\subsection{Methods}\label{methods}}
+
+\hypertarget{results}{%
+\subsection{Results}\label{results}}
+
+\hypertarget{threats-to-validity}{%
+\subsubsection{Threats to validity}\label{threats-to-validity}}
+
+\hypertarget{recommendations}{%
+\subsection{Recommendations}\label{recommendations}}
+
+\end{document}
