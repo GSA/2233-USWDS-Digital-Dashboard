@@ -32,8 +32,8 @@ library(janitor)
 library(skimr)
 library(DataExplorer)
 library(readr)
-library(oesrrr)
-library(oescolorrrs)
+#library(oesrrr)
+#library(oescolorrrs)
 library(ggthemes)
 library(DesignLibrary)
 library(MASS)
@@ -211,7 +211,8 @@ simulation_01 <- function(
   outcome_1 = case_when(
     effect*treatment + outcome_0 < 0 ~ 0,
     effect*treatment + outcome_0 >= 0 ~ effect*treatment + outcome_0
-  )
+  ),
+  outcome_obs = treatment*outcome_1 + (1-treatment)*outcome_0
 )
 
   # JB: I think that glm.nb is unnecessary and makes it hard to interpret the
@@ -221,13 +222,19 @@ simulation_01 <- function(
   if(in_outcome_distribution == "negative binomial")
   {
       reg <-
-          pop_01 %>% MASS::glm.nb(outcome_1 ~ treatment + outcome_0, data = ., maxit = 1000)
+          pop_01 %>% MASS::glm.nb(outcome_obs ~ treatment, data = ., maxit = 1000)
   }
 
   if(in_outcome_distribution == "normal")
     {
+    ## Not doing covariance adjustment using baseline outcome_0 because it basically perfectly predicts observed outcome given rareness of treatment. Maybe create another baseline outcome that is not a perfect predictor of outcome_obs.
   reg <-
-  pop_01 %>% lm_robust(outcome_1 ~ treatment + outcome_0, data = .)
+  pop_01 %>% lm_robust(outcome_obs ~ treatment, data = .)
+  
+  ## This next does not estimate the average number of outcome caused by treatment
+  ## but the p-value is a test with power against the alternative that the treatment group is *higher* than the control group (ranks bigger on avearage). It estiamte the average difference in ranks.
+  pop_01$outcome_obs_rank <- rank(pop_01$outcome_obs)
+  rank_reg <- lm_robust(outcome_obs_rank~treatment,data=pop_01)
   }
 
   out <- reg %>%
@@ -239,19 +246,45 @@ simulation_01 <- function(
 }
 ```
 
+Test the function
+```{r}
+test_output <- simulation_01(in_iteration = 1,
+              in_population_size = 1112,
+              in_ate=params$ate,
+              in_population_mean=8,
+              in_prop_assigned_treatment = .05,
+              in_outcome_distribution = "normal")
+
+test_output$p.value[2]
+```
+
+
 We create `r scales::comma(params$simulations)` of this function.
 
 ```{r}
 sims <-
   1:params$simulations %>%
   map_dfr(~simulation_01(in_iteration = .,
-              in_population_size = population_size_color_contrast_issues,
+              in_population_size = 1112, # population_size_color_contrast_issues,
               in_ate = params$ate,
-              in_population_mean = population_mean_color_contrast_issues,
-              in_prop_assigned_treatment = population_treatement_proportion,
+              in_population_mean = 8 , #population_mean_color_contrast_issues,
+              in_prop_assigned_treatment = .05, #population_treatement_proportion,
               in_outcome_distribution = "normal")
   )
 ```
+
+How often do we reject the null of no effects given the true ate of `r params$ate`:
+
+```{r}
+sims_trt <- sims %>% filter(term=="treatment") %>% dplyr::select(p.value)
+summary(sims_trt)
+## This is the power to detect an ate of 1 given significance level of .05 and other design parameters.
+mean(sims_trt <= .05)
+```
+
+Which ate just pushes us over .8 for sims_trt above? That is the minimally detectable effect.
+
+
 
 For the the treatment estimates, we calculate the the 80th percentile.
 
