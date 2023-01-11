@@ -5,3 +5,4 @@ analysis/.Rproj.user/*
 *.gsheet.lnk
 03. Data Collection/*
 renv/settings.dcf
+.Rproj.user
