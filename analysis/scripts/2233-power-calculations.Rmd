@@ -10,19 +10,21 @@ params:
   author: "Ben Jaques-Leslie"
   project_number: 2233
   project_name: "USWDS Digital Dashboard"
+  data_folder: "G:/Shared drives/MSG Projects/3.0 Digital Government (LQ3)/2233 USWDS Digital Dashboard/03. Data Collection"
   data: "wds.rdata"
   sample_min: 100
   sample_max: 2000
   ate: -1
-  ate_min: .1
-  ate_max: .25
+  ate_min: -10
+  ate_max: -1
+  ate_increment: 1
   error_variance: .45
   treatment_probability: .5
   panels_min: 1
   panels_max: 4
   treatment_at_min: 1
   treatment_at_max: 4
-  simulations: 5000
+  simulations: 100
 ---
 
 ```{r setup, include=FALSE}
@@ -32,11 +34,12 @@ library(janitor)
 library(skimr)
 library(DataExplorer)
 library(readr)
-#library(oesrrr)
-#library(oescolorrrs)
+# library(oesrrr)
+# library(oescolorrrs)
 library(ggthemes)
 library(DesignLibrary)
 library(MASS)
+library(flextable)
 ```
 
 # Power calculations {.tabset .tabset-pills}
@@ -54,7 +57,7 @@ library(MASS)
 ### Data from `r params$data`
 
 ```{r}
-load(here::here("03. Data Collection",params$data))
+load(file.path(params$data_folder,params$data))
 ```
 
 Review data.
@@ -171,19 +174,21 @@ population_treatement_proportion <-
 population_treatement_proportion
 ```
 
-The assumed average treatment effect is `r params$ate`. We are assuming that the use of USWDS will decrease the number of issues by `r params$ate`.
+The assumed average treatment effect is between `r params$ate_min` and `r params$ate_max`. We are assuming that the use of USWDS will decrease the number of issues by between `r params$ate_min` and `r params$ate_max`.
 
-Based on the evaluation of the outcome indicators above, we are assuming that the outcome indicators follow a negative binomial distribution.
+Based on the evaluation of the outcome indicators above, we are assuming that the outcome indicators follow a negative binomial distribution, but cannot fall below zero.
 
 The treatment effect is likely to come from a negative binomial distribution on the left side of zero as the treatment is unlikely to increase issues and follow a similar distribution to the outcome.
 
 We calculate the treatment effect with this formula:
 
 $$
-Y_1 = \beta_0 + \beta_1Treatment + \beta_2Y_0
+Y_1 = \beta_0 + \beta_1Treatment
 $$
 
-### Calculating power
+$Y_1$ is calculated by the number of issues or by the rank of the agency in number of issues. 
+
+### Functions
 
 The function below calculates the betas based on the assumptions above.
 
@@ -193,8 +198,8 @@ simulation_01 <- function(
     in_population_size,
     in_ate,
     in_population_mean,
-    in_prop_assigned_treatment,
-    in_outcome_distribution)
+    in_prop_assigned_treatment
+    )
 {
   # Treatment effect
   effect <- -rnbinom(in_population_size, size = 1, mu = -in_ate)
@@ -215,138 +220,142 @@ simulation_01 <- function(
   outcome_obs = treatment*outcome_1 + (1-treatment)*outcome_0
 )
 
-  # JB: I think that glm.nb is unnecessary and makes it hard to interpret the
-  # coefs. Again, see the proofs of the unbiasedness of the difference of means
-  # as an estimator of the average treatment effect
 
-  if(in_outcome_distribution == "negative binomial")
-  {
-      reg <-
-          pop_01 %>% MASS::glm.nb(outcome_obs ~ treatment, data = ., maxit = 1000)
-  }
-
-  if(in_outcome_distribution == "normal")
-    {
-    ## Not doing covariance adjustment using baseline outcome_0 because it basically perfectly predicts observed outcome given rareness of treatment. Maybe create another baseline outcome that is not a perfect predictor of outcome_obs.
+  # Not doing covariance adjustment using baseline outcome_0 because it basically perfectly predicts observed outcome given rareness of treatment. Maybe create another baseline outcome that is not a perfect predictor of outcome_obs.
   reg <-
   pop_01 %>% lm_robust(outcome_obs ~ treatment, data = .)
   
-  ## This next does not estimate the average number of outcome caused by treatment
-  ## but the p-value is a test with power against the alternative that the treatment group is *higher* than the control group (ranks bigger on avearage). It estiamte the average difference in ranks.
+  # This next does not estimate the average number of outcome caused by treatment
+  # but the p-value is a test with power against the alternative that the treatment group is *higher* than the control group (ranks bigger on average). It estimate the average difference in ranks.
+  
   pop_01$outcome_obs_rank <- rank(pop_01$outcome_obs)
   rank_reg <- lm_robust(outcome_obs_rank~treatment,data=pop_01)
-  }
-
-  out <- reg %>%
+  
+  # Tidying regressions
+  
+  prep_01 <- 
+    reg %>%
     tidy() %>%
-    mutate(iteration = as.character(in_iteration)) %>%
+    mutate(iteration = as.character(in_iteration),
+           regression = "outcome") %>%
     dplyr::select(iteration, everything())
+  
+   prep_02 <- 
+    rank_reg %>%
+    tidy() %>%
+    mutate(iteration = as.character(in_iteration),
+           regression = "rank") %>%
+    dplyr::select(iteration, everything())
+
+  out <- bind_rows(prep_01,prep_02)
 
   return(out)
 }
 ```
 
-Test the function
-```{r}
-test_output <- simulation_01(in_iteration = 1,
-              in_population_size = 1112,
-              in_ate=params$ate,
-              in_population_mean=8,
-              in_prop_assigned_treatment = .05,
-              in_outcome_distribution = "normal")
-
-test_output$p.value[2]
-```
-
-
-We create `r scales::comma(params$simulations)` of this function.
+This functions calculates the power of different average treatment effects for specified number of simulations.
 
 ```{r}
-sims <-
-  1:params$simulations %>%
+power_01 <- function(in_iterations,
+              in_population_size,
+              in_ate,
+              in_population_mean,
+              in_prop_assigned_treatment)
+{
+  sims <-
+  1:in_iterations %>%
   map_dfr(~simulation_01(in_iteration = .,
-              in_population_size = 1112, # population_size_color_contrast_issues,
-              in_ate = params$ate,
-              in_population_mean = 8 , #population_mean_color_contrast_issues,
-              in_prop_assigned_treatment = .05, #population_treatement_proportion,
-              in_outcome_distribution = "normal")
+              in_population_size = in_population_size, # population_size_color_contrast_issues,
+              in_ate = in_ate,
+              in_population_mean = in_population_mean , #population_mean_color_contrast_issues,
+              in_prop_assigned_treatment = in_prop_assigned_treatment #population_treatement_proportion,
+              )
   )
+  
+  out <- 
+    sims %>% 
+  filter(term=="treatment") %>%
+  group_by(regression) %>%
+  summarise(beta_mean = mean(estimate),
+            beta_sd = sd(estimate),
+            power = mean(p.value <= 0.05)) %>% 
+    ungroup() %>% 
+    mutate(ate = in_ate)
+  
+  return(out)
+}
 ```
 
-How often do we reject the null of no effects given the true ate of `r params$ate`:
+### Calculating power
+
+We calculate the power for treatment effects between `r params$ate_min` and `r params$ate_max` incremented by `r params$ate_increment` for `r scales::comma(params$simulations)` of this function.
 
 ```{r}
-sims_trt <- sims %>% filter(term=="treatment") %>% dplyr::select(p.value)
-summary(sims_trt)
-## This is the power to detect an ate of 1 given significance level of .05 and other design parameters.
-mean(sims_trt <= .05)
-```
-
-Which ate just pushes us over .8 for sims_trt above? That is the minimally detectable effect.
-
-
-
-For the the treatment estimates, we calculate the the 80th percentile.
-
-<!-- JB I'm
-not sure what is happening here. Don't you want to know whether 80% of the
-time you've reject the null of no effects given a particular treatment effect?
--->
-
-```{r}
-prep_01 <-
-  sims %>%
-  filter(term == 'treatment') %>%
-  summarise(
-    # q_10 = quantile(estimate,probs = 0.1),
-    #         q_20 = quantile(estimate,probs = 0.2),
-    #         q_50 = quantile(estimate,probs = 0.5),
-    #         median = median(estimate),
-            q_80 = quantile(estimate,
-                            probs = 0.8,names = FALSE),
-            # q_90 = quantile(estimate,probs = 0.9)
-    ) %>%
-  rownames_to_column() %>%
-  pivot_longer(-rowname) %>%
-  dplyr::select(-rowname) %>%
-  mutate(label = glue::glue("MDE: {scales::comma(value, accuracy = .01)}"))
-
+powers <-
+  seq(params$ate_min,params$ate_max, params$ate_increment) %>%
+  map_dfr(~power_01(in_iteration = params$simulations,
+              in_population_size = population_size_color_contrast_issues, # population_size_color_contrast_issues,
+              in_ate = .,
+              in_population_mean = population_mean_color_contrast_issues , #population_mean_color_contrast_issues,
+              in_prop_assigned_treatment = population_treatement_proportion #population_treatement_proportion,
+              )
+  )
 ```
 
 ### Minimum detectable effect
 
-The estimated beta of the treatment are shown below with the MDE of `r prep_01 %>% pull(value) %>% scales::comma(accuracy = .01)`.
+The chart below shows the power for different average treatment effects.
 
 ```{r}
-prep_02 <- sims %>%
-           filter(term == 'treatment')
-```
-
-The chart below shows the distribution of betas with an vertical line for the MDE.
-
-```{r}
-ggplot() +
-  geom_density(data = prep_02,
-         aes(x = estimate, color = term, fill = term),
-         alpha = .1) +
-  geom_vline(data = prep_01, aes(xintercept = value)) +
-  geom_text(data = prep_01, aes(x = value, label=label, y=Inf), hjust = -0.25,vjust = 1) +
+powers %>% 
+  ggplot(aes(x = ate, y = power, color = regression)) +
+  geom_line() +
+  geom_hline(yintercept = .8) +
   ggthemes::theme_fivethirtyeight() +
-  scale_color_oes() +
-  scale_fill_oes() +
+  scale_x_continuous(limits = c(params$ate_min,params$ate_max),
+                     breaks = seq(params$ate_min,params$ate_max, params$ate_increment)) +
+  # scale_color_oes() +
+  # scale_fill_oes() +
   labs(
-    title = "Distribution of estimated treatment betas",
+    title = "Power at different effects levels",
     subtitle = glue::glue("Population size: {scales::comma(population_size_color_contrast_issues)}
                           Population outcome mean: {scales::comma(population_mean_color_contrast_issues, accuracy = .01)}
                           Population treatment proportion: {scales::comma(population_treatement_proportion, accuracy = .01)}
-                          Population treatment effect: {scales::comma(params$ate, accuracy = .01)}
                           Number of simulations: {scales::comma(params$simulations)}
                           ")
+    
   ) +
+  xlab("Average treatment effect") +
+  ylab("Power") +
   theme(
-    legend.position = "none",
+    axis.title = element_text(),
+    legend.title = element_blank(),
+    legend.position = "right",
+    legend.direction = "vertical",
     plot.title = element_text(hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5,
                                  size = 10)
   )
 ```
+
+```{r}
+tbl <- powers %>% 
+  filter(power >= .8) %>% 
+  group_by(regression) %>% 
+  filter(power == min(power)) %>% 
+           ungroup() %>% 
+    dplyr::select(regression, power, ate) %>% 
+  mutate(regression = str_to_title(regression)) %>% 
+  rename_all(~str_to_title(.)) %>% 
+  rename("Minimum detectable effect" = Ate) 
+
+tbl
+```
+
+```{r}
+tbl %>% 
+  flextable() %>% 
+  autofit()
+  
+```
+
