@@ -7,3 +7,4 @@ analysis/.Rproj.user/*
 renv/settings.dcf
 .Rproj.user
 .Rhistory
+*.html
