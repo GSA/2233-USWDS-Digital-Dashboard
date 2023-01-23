@@ -16,15 +16,15 @@ params:
   sample_max: 2000
   ate: -1
   ate_min: -10
-  ate_max: -1
-  ate_increment: 1
+  ate_max: 0
+  ate_increment: .25
   error_variance: .45
   treatment_probability: .5
   panels_min: 1
   panels_max: 4
   treatment_at_min: 1
   treatment_at_max: 4
-  simulations: 100
+  simulations: 5000
 ---
 
 ```{r setup, include=FALSE}
@@ -61,7 +61,7 @@ if( !exists("params") ){
 
 **Author**: `r params$author`
 
-**Data**: `r params$data`'
+**Data**: `r params$data`
 
 ## Load data {.tabset .tabset-pills}
 
@@ -356,10 +356,10 @@ plan(multisession,workers=availableCores()-1)
 ## Here plugging in some numbers to check the code.
 ## Also I'm interesting in ensuring that power at ate=0 is close to .05 as a
 ## check on the false positive rates of the tests
-ate_max <- 0
-population_size_color_contrast_issues <- 100
-population_mean_color_contrast_issues <- 2
-population_treatement_proportion <- .5
+ate_max <- params$ate_max
+# population_size_color_contrast_issues <- 100
+# population_mean_color_contrast_issues <- 2
+# population_treatement_proportion <- .5
 
 powers <-
     seq(params$ate_min,ate_max, params$ate_increment) %>%
@@ -384,7 +384,7 @@ powers %>%
     geom_hline(yintercept = c(.8,.05)) +
     ggthemes::theme_fivethirtyeight() +
     scale_x_continuous(limits = c(params$ate_min,params$ate_max),
-        breaks = seq(params$ate_min,params$ate_max, params$ate_increment)) +
+        breaks = scales::pretty_breaks(n = 10)) +
     # scale_color_oes() +
     # scale_fill_oes() +
     labs(
