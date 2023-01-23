@@ -40,6 +40,17 @@ library(ggthemes)
 library(DesignLibrary)
 library(MASS)
 library(flextable)
+library(coin)
+library(estimatr)
+library(furrr)
+library(future)
+```
+
+```{r parse_params}
+## In case you are not using RStudio but need the params
+if( !exists("params") ){
+    params <- rmarkdown::yaml_front_matter(here::here("analysis/scripts", "2233-power-calculations.Rmd"))$params
+}
 ```
 
 # Power calculations {.tabset .tabset-pills}
@@ -111,12 +122,10 @@ d %>%
   facet_wrap('name', scales = "free")
 ```
 
-Outcome distribution is very left skewed and may be better model by a negative binomial distribution.
-<!--
+Outcome distribution is very left skewed. <!--
 JB: If this is a randomized trial then we don't need to choose a model of the
 outcome. See Chapter 3 of Gerber and Green field experiments or the materials on
 estimation in https://egap.github.io/theory_and_practice_of_field_experiments/
-
 -->
 
 ## Power analysis {.tabset .tabset-pills}
@@ -124,9 +133,6 @@ estimation in https://egap.github.io/theory_and_practice_of_field_experiments/
 ### Assumptions
 
 Several assumptions are based on the means and sample size of the USWDS data.
-<!--
-https://english.stackexchange.com/questions/15081/based-on-instead-of-based-off-of
--->
 
 ```{r}
 prep_01 <-
@@ -178,19 +184,25 @@ The assumed average treatment effect is between `r params$ate_min` and `r params
 
 Based on the evaluation of the outcome indicators above, we are assuming that the outcome indicators follow a negative binomial distribution, but cannot fall below zero.
 
-The treatment effect is likely to come from a negative binomial distribution on the left side of zero as the treatment is unlikely to increase issues and follow a similar distribution to the outcome.
+The treatment effect is likely to come from a negative binomial distribution on the left side of zero as the treatment is unlikely to increase issues and we expect large effects on some site but mostly small and/or no effects.
 
-We calculate the treatment effect with this formula:
+We **define** the average treatment effect as
 
 $$
-Y_1 = \beta_0 + \beta_1Treatment
+\text{ate} = 1/n \sum_{i=1}^n Y_{i,1} - Y_{i,0}
 $$
 
-$Y_1$ is calculated by the number of issues or by the rank of the agency in number of issues. 
+We **estimate** the average treatment effect using a difference of means calculated using OLS with the following specification where $Y$ is the observed value of the outcome such that $Y_i = Treatment_i Y_{i,1} + (1-Treatment_i) Y_{i,0}$:
+
+$$
+Y_i = \beta_0 + \beta_1Treatment_i
+$$
+
+$Y$ is calculated by the number of issues or by the rank of the agency in number of issues.
 
 ### Functions
 
-The function below calculates the betas based on the assumptions above.
+The function below calculates generates data (including baseline outcomes and treatment randomization), estimates average treatment effects, and tests the null hypothesis of no average effects, based on the assumptions above.
 
 ```{r}
 simulation_01 <- function(
@@ -214,40 +226,49 @@ simulation_01 <- function(
   treatment = complete_ra(N = in_population_size,prob = in_prop_assigned_treatment),
   outcome_0 = outcome_0,
   outcome_1 = case_when(
-    effect*treatment + outcome_0 < 0 ~ 0,
-    effect*treatment + outcome_0 >= 0 ~ effect*treatment + outcome_0
+    effect + outcome_0 < 0 ~ 0,
+    effect + outcome_0 >= 0 ~ effect + outcome_0
   ),
-  outcome_obs = treatment*outcome_1 + (1-treatment)*outcome_0
+  true_effect = outcome_1 - outcome_0,
+  outcome_obs = treatment*outcome_1 + (1-treatment)*outcome_0,
+  outcome_obs_rank = rank(outcome_obs)
 )
 
 
-  # Not doing covariance adjustment using baseline outcome_0 because it basically perfectly predicts observed outcome given rareness of treatment. Maybe create another baseline outcome that is not a perfect predictor of outcome_obs.
+  ## Not doing covariance adjustment using baseline outcome_0 because it
+  ## basically perfectly predicts observed outcome given rareness of treatment.
+  ## Maybe create another baseline outcome that is not a perfect predictor of
+  ## outcome_obs.
+
   reg <-
   pop_01 %>% lm_robust(outcome_obs ~ treatment, data = .)
-  
-  # This next does not estimate the average number of outcome caused by treatment
-  # but the p-value is a test with power against the alternative that the treatment group is *higher* than the control group (ranks bigger on average). It estimate the average difference in ranks.
-  
-  pop_01$outcome_obs_rank <- rank(pop_01$outcome_obs)
+
+  # This next does not estimate the average number of outcome caused by
+  ## treatment but the p-value is a test with power against the alternative that
+  ## the treatment group is *higher* than the control group (ranks bigger on
+  ##     average). It estimate the average difference in ranks.
+
   rank_reg <- lm_robust(outcome_obs_rank~treatment,data=pop_01)
-  
+
   # Tidying regressions
-  
-  prep_01 <- 
+  #
+  true_ate <- pop_01 %>% summarize(ate=mean(true_effect)) %>% unlist()
+
+  prep_01 <-
     reg %>%
     tidy() %>%
     mutate(iteration = as.character(in_iteration),
-           regression = "outcome") %>%
+           regression = "outcome",true_ate=true_ate) %>%
     dplyr::select(iteration, everything())
-  
-   prep_02 <- 
+
+   prep_02 <-
     rank_reg %>%
     tidy() %>%
     mutate(iteration = as.character(in_iteration),
-           regression = "rank") %>%
+           regression = "rank",true_ate=NA) %>%
     dplyr::select(iteration, everything())
 
-  out <- bind_rows(prep_01,prep_02)
+  out <- bind_rows(prep_01,prep_02) %>% filter(term=="treatment")
 
   return(out)
 }
@@ -257,33 +278,72 @@ This functions calculates the power of different average treatment effects for s
 
 ```{r}
 power_01 <- function(in_iterations,
-              in_population_size,
-              in_ate,
-              in_population_mean,
-              in_prop_assigned_treatment)
+    in_population_size,
+    in_ate,
+    in_population_mean,
+    in_prop_assigned_treatment)
 {
-  sims <-
-  1:in_iterations %>%
-  map_dfr(~simulation_01(in_iteration = .,
-              in_population_size = in_population_size, # population_size_color_contrast_issues,
-              in_ate = in_ate,
-              in_population_mean = in_population_mean , #population_mean_color_contrast_issues,
-              in_prop_assigned_treatment = in_prop_assigned_treatment #population_treatement_proportion,
-              )
-  )
-  
-  out <- 
-    sims %>% 
-  filter(term=="treatment") %>%
-  group_by(regression) %>%
-  summarise(beta_mean = mean(estimate),
-            beta_sd = sd(estimate),
-            power = mean(p.value <= 0.05)) %>% 
-    ungroup() %>% 
-    mutate(ate = in_ate)
-  
-  return(out)
+    sims <-
+        1:in_iterations %>%
+        map_dfr(~simulation_01(in_iteration = .,
+                in_population_size = in_population_size,
+                in_ate = in_ate,
+                in_population_mean = in_population_mean ,
+                in_prop_assigned_treatment = in_prop_assigned_treatment
+    )
+        )
+
+        out <-
+            sims %>%
+            filter(term=="treatment") %>%
+            group_by(regression) %>%
+            summarise(beta_mean = mean(estimate),
+                beta_sd = sd(estimate),
+                mean_est_se = mean(std.error),
+                power = mean(p.value <= 0.05),
+                coverage = mean( true_ate >= conf.low & true_ate <= conf.high),
+                bias = mean(estimate - true_ate),
+                mean_ate = mean(true_ate)) %>%
+            ungroup() %>%
+            mutate(ate = in_ate)
+
+        return(out)
 }
+```
+
+```{r testing_fns, eval=FALSE, include=FALSE}
+## This chunk is just to allow testing of the functions.
+##
+##
+set.seed(12345)
+sim_out <- simulation_01(in_iteration = 1,
+    in_population_size = 1000,
+    in_ate = params$ate_min,
+    in_population_mean = 2,
+    in_prop_assigned_treatment = params$treatment_probability)
+sim_out
+
+## When in_ate=0 power should be the same as false positive rate
+## and so should be .05 or less (plus or minus simulation error). Coverage should
+## be at least .95.  We also want beta_sd to be very close to est_se if our
+## estimated standard errors are approximating the true standard error well
+
+power_out <- power_01(in_iterations=1000,
+    in_population_size=1000,
+    in_ate=0,
+    in_population_mean=2,
+    in_prop_assigned_treatment= params$treatment_probability)
+
+power_out
+
+## We expect more than .05 power but coverage should stay close to .95 or above.
+power_out_ate1 <- power_01(in_iterations=1000,
+    in_population_size=1000,
+    in_ate=-1,
+    in_population_mean=2,
+    in_prop_assigned_treatment= params$treatment_probability)
+
+power_out_ate1
 ```
 
 ### Calculating power
@@ -291,15 +351,25 @@ power_01 <- function(in_iterations,
 We calculate the power for treatment effects between `r params$ate_min` and `r params$ate_max` incremented by `r params$ate_increment` for `r scales::comma(params$simulations)` of this function.
 
 ```{r}
+## Trying to speed this up with a parallel version of map_dfr
+plan(multisession,workers=availableCores()-1)
+## Here plugging in some numbers to check the code.
+## Also I'm interesting in ensuring that power at ate=0 is close to .05 as a
+## check on the false positive rates of the tests
+params$ate_max <- 0
+population_size_color_contrast_issues <- 100
+population_mean_color_contrast_issues <- 2
+population_treatement_proportion <- .5
+
 powers <-
-  seq(params$ate_min,params$ate_max, params$ate_increment) %>%
-  map_dfr(~power_01(in_iteration = params$simulations,
-              in_population_size = population_size_color_contrast_issues, # population_size_color_contrast_issues,
-              in_ate = .,
-              in_population_mean = population_mean_color_contrast_issues , #population_mean_color_contrast_issues,
-              in_prop_assigned_treatment = population_treatement_proportion #population_treatement_proportion,
-              )
-  )
+    seq(params$ate_min,params$ate_max, params$ate_increment) %>%
+    future_map_dfr(~power_01(in_iteration = params$simulations,
+            in_population_size = population_size_color_contrast_issues,
+            in_ate = .,
+            in_population_mean =  population_mean_color_contrast_issues ,
+            in_prop_assigned_treatment =  population_treatement_proportion),
+        .options = furrr_options(seed = 123),.progress=TRUE)
+plan(sequential)
 ```
 
 ### Minimum detectable effect
@@ -307,55 +377,54 @@ powers <-
 The chart below shows the power for different average treatment effects.
 
 ```{r}
-powers %>% 
-  ggplot(aes(x = ate, y = power, color = regression)) +
-  geom_line() +
-  geom_hline(yintercept = .8) +
-  ggthemes::theme_fivethirtyeight() +
-  scale_x_continuous(limits = c(params$ate_min,params$ate_max),
-                     breaks = seq(params$ate_min,params$ate_max, params$ate_increment)) +
-  # scale_color_oes() +
-  # scale_fill_oes() +
-  labs(
-    title = "Power at different effects levels",
-    subtitle = glue::glue("Population size: {scales::comma(population_size_color_contrast_issues)}
-                          Population outcome mean: {scales::comma(population_mean_color_contrast_issues, accuracy = .01)}
-                          Population treatment proportion: {scales::comma(population_treatement_proportion, accuracy = .01)}
-                          Number of simulations: {scales::comma(params$simulations)}
-                          ")
-    
-  ) +
-  xlab("Average treatment effect") +
-  ylab("Power") +
-  theme(
-    axis.title = element_text(),
-    legend.title = element_blank(),
-    legend.position = "right",
-    legend.direction = "vertical",
-    plot.title = element_text(hjust = 0.5),
-    plot.subtitle = element_text(hjust = 0.5,
-                                 size = 10)
-  )
+
+powers %>%
+    ggplot(aes(x = ate, y = power, color = regression)) +
+    geom_line() +
+    geom_hline(yintercept = c(.8,.05)) +
+    ggthemes::theme_fivethirtyeight() +
+    scale_x_continuous(limits = c(params$ate_min,params$ate_max),
+        breaks = seq(params$ate_min,params$ate_max, params$ate_increment)) +
+    # scale_color_oes() +
+    # scale_fill_oes() +
+    labs(
+        title = "Power at different effects levels",
+        subtitle = glue::glue("Population size: {scales::comma(population_size_color_contrast_issues)}
+            Population outcome mean: {scales::comma(population_mean_color_contrast_issues, accuracy = .01)}
+            Population treatment proportion: {scales::comma(population_treatement_proportion, accuracy = .01)}
+            Number of simulations: {scales::comma(params$simulations)}
+            ")
+
+            ) +
+        xlab("Average treatment effect") +
+        ylab("Power") +
+        theme(
+            axis.title = element_text(),
+            legend.title = element_blank(),
+            legend.position = "right",
+            legend.direction = "vertical",
+            plot.title = element_text(hjust = 0.5),
+            plot.subtitle = element_text(hjust = 0.5,
+                size = 10)
+        )
 ```
 
 ```{r}
-tbl <- powers %>% 
-  filter(power >= .8) %>% 
-  group_by(regression) %>% 
-  filter(power == min(power)) %>% 
-           ungroup() %>% 
-    dplyr::select(regression, power, ate) %>% 
-  mutate(regression = str_to_title(regression)) %>% 
-  rename_all(~str_to_title(.)) %>% 
-  rename("Minimum detectable effect" = Ate) 
+tbl <- powers %>%
+    filter(power >= .8) %>%
+    group_by(regression) %>%
+    filter(power == min(power)) %>%
+    ungroup() %>%
+    dplyr::select(regression, power, ate) %>%
+    mutate(regression = str_to_title(regression)) %>%
+  rename_all(~str_to_title(.)) %>%
+  rename("Minimum detectable effect" = Ate)
 
 tbl
 ```
 
 ```{r}
-tbl %>% 
-  flextable() %>% 
+tbl %>%
+  flextable() %>%
   autofit()
-  
 ```
-
