@@ -94,8 +94,8 @@ d %>%
   filter(name != "uswds_score") %>%
   ggplot(aes(x = value)) +
   geom_density() +
-  theme_fivethirtyeight() +
-  scale_fill_oes()
+  theme_fivethirtyeight() #+
+  # scale_fill_oes()
 ```
 
 ### Distribution by issue count and WDS score.
@@ -106,7 +106,7 @@ Again issues are very left skewed. This is consistent across the issue types. WD
 d %>%
   ggplot(aes(x = value, fill = name)) +
   geom_histogram() +
-  scale_fill_oes(palette = "full colors") +
+  # scale_fill_oes(palette = "full colors") +
   theme_fivethirtyeight()
 ```
 
@@ -117,7 +117,7 @@ d %>%
   mutate(value = replace_na(value, 0)) %>%
   ggplot(aes(x = value, fill = name)) +
   geom_histogram() +
-  scale_fill_oes(palette = "full colors") +
+  # scale_fill_oes(palette = "full colors") +
   theme_fivethirtyeight() +
   facet_wrap('name', scales = "free")
 ```
@@ -356,13 +356,13 @@ plan(multisession,workers=availableCores()-1)
 ## Here plugging in some numbers to check the code.
 ## Also I'm interesting in ensuring that power at ate=0 is close to .05 as a
 ## check on the false positive rates of the tests
-params$ate_max <- 0
+ate_max <- 0
 population_size_color_contrast_issues <- 100
 population_mean_color_contrast_issues <- 2
 population_treatement_proportion <- .5
 
 powers <-
-    seq(params$ate_min,params$ate_max, params$ate_increment) %>%
+    seq(params$ate_min,ate_max, params$ate_increment) %>%
     future_map_dfr(~power_01(in_iteration = params$simulations,
             in_population_size = population_size_color_contrast_issues,
             in_ate = .,
